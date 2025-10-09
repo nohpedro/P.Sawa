@@ -1,0 +1,38 @@
+# General
+.git
+.gitignore
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.pyd
+*.sqlite3
+
+# Python venvs
+.venv
+venv
+env
+
+# Node / tooling
+node_modules
+dist
+build
+
+# Editor/OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Django assets
+static/
+media/
+
+# Tests / coverage
+.coverage
+htmlcov
+.pytest_cache
+.cache
+
+# Compose overrides and local files
+compose/*.env
+!.env.example
