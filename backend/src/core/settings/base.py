@@ -24,6 +24,7 @@ INSTALLED_APPS = [
 
     # Local apps
     "core",  # incluimos core para el health_check
+    "common_vap",
 ]
 
 # === Middleware ===
@@ -68,6 +69,8 @@ MEDIA_ROOT = BASE_DIR / "media"
 # === Django REST Framework ===
 REST_FRAMEWORK = {
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+    "DEFAULT_PAGINATION_CLASS": "common_vap.pagination.DefaultPageNumberPagination",
+    "PAGE_SIZE": 20,
 }
 
 # === Swagger / OpenAPI ===
@@ -84,7 +87,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [BASE_DIR / "templates"],  # opcional, por si agregas templates propios
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
