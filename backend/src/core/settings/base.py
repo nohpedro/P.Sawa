@@ -1,15 +1,18 @@
 from pathlib import Path
 import os
+from datetime import timedelta
 
+# === Rutas base ===
 BASE_DIR = Path(__file__).resolve().parents[2]
 
+# === Configuración general ===
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "dev-secret-key")
 DEBUG = os.getenv("DJANGO_DEBUG", "1") == "1"
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 
 # === Aplicaciones instaladas ===
 INSTALLED_APPS = [
-    # Core Django
+    # Apps Django base
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -17,15 +20,17 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
 
-    # 3rd Party
+    # Terceros
     "rest_framework",
     "drf_spectacular",
     "drf_spectacular_sidecar",
+    "rest_framework_simplejwt",
 
-    # Local apps
+    # Apps locales
     "core",
     "common_vap",
     "users",
+    "auth_vap",
 ]
 
 # === Middleware ===
@@ -43,10 +48,10 @@ ROOT_URLCONF = "core.urls"
 WSGI_APPLICATION = "core.wsgi.application"
 ASGI_APPLICATION = "core.asgi.application"
 
-# === Base de datos (PostgreSQL) ===
+# === Base de datos (PostgreSQL por defecto) ===
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
         "NAME": os.getenv("POSTGRES_DB", "proy_volley"),
         "USER": os.getenv("POSTGRES_USER", "postgres"),
         "PASSWORD": os.getenv("POSTGRES_PASSWORD", "postgres"),
@@ -55,36 +60,31 @@ DATABASES = {
     }
 }
 
+# Alternativa local con SQLite (solo si USE_SQLITE=1)
+if os.getenv("USE_SQLITE") == "1":
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",
+        }
+    }
+
 # === Internacionalización ===
 LANGUAGE_CODE = "es-es"
 TIME_ZONE = os.getenv("TZ", "UTC")
 USE_I18N = True
 USE_TZ = True
 
-# === Archivos estáticos ===
+# === Archivos estáticos y media ===
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "static"
+
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "media"
 
-# === Django REST Framework ===
-REST_FRAMEWORK = {
-    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
-    "DEFAULT_PAGINATION_CLASS": "common_vap.pagination.DefaultPageNumberPagination",
-    "PAGE_SIZE": 20,
-}
-
-# === Swagger / OpenAPI ===
-SPECTACULAR_SETTINGS = {
-    "TITLE": "Proy Volley API",
-    "DESCRIPTION": "API para gestión de espacios, actividades y reservas.",
-    "VERSION": "0.1.0",
-    "SERVE_INCLUDE_SCHEMA": False,
-}
-
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Templates (requerido por django.contrib.admin)
+# === Templates (requerido por admin) ===
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
@@ -101,5 +101,78 @@ TEMPLATES = [
     },
 ]
 
-STATIC_URL = "/static/"
-STATIC_ROOT = BASE_DIR / "static"
+# === Configuración Django REST Framework ===
+REST_FRAMEWORK = {
+    # Autenticación con JWT (solo access token)
+    "DEFAULT_AUTHENTICATION_CLASSES": (
+        "auth_vap.authentication.AccessTokenAuthentication",
+    ),
+
+    # Permisos globales
+    "DEFAULT_PERMISSION_CLASSES": (
+        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
+    ),
+
+    # Documentación OpenAPI/Swagger
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+
+    # Paginación global
+    "DEFAULT_PAGINATION_CLASS": "common_vap.pagination.DefaultPageNumberPagination",
+    "PAGE_SIZE": 20,
+}
+
+# === Swagger / OpenAPI ===
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Proy Volley API",
+    "DESCRIPTION": "API para gestión de espacios, actividades y reservas.",
+    "VERSION": "0.1.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+    "COMPONENT_SPLIT_REQUEST": True,
+
+    # Mantener sesión en UI
+    "SWAGGER_UI_SETTINGS": {"persistAuthorization": True},
+
+    # 1) Declara explícitamente el esquema Bearer (JWT)
+    "SECURITY_SCHEMES": {
+        "BearerAuth": {
+            "type": "http",
+            "scheme": "bearer",
+            "bearerFormat": "JWT",
+            "description": "Introduce solo el token (sin 'Bearer '), la UI agrega el prefijo automáticamente.",
+        }
+    },
+
+    # 2) Haz que todos los endpoints usen Bearer por defecto
+    "SECURITY": [{"BearerAuth": []}],
+
+    # 3) Usa el “scheme” de SimpleJWT para documentar correctamente, aunque tu auth real sea custom
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "drf_spectacular.contrib.rest_framework_simplejwt.authentication.SimpleJWTScheme",
+    ],
+}
+
+# === Configuración SimpleJWT (solo access token) ===
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(hours=8),  # duración del token
+    "REFRESH_TOKEN_LIFETIME": timedelta(seconds=0),  # deshabilitado
+    "ROTATE_REFRESH_TOKENS": False,
+    "BLACKLIST_AFTER_ROTATION": False,
+    "UPDATE_LAST_LOGIN": True,
+
+    # Encabezado
+    "AUTH_HEADER_TYPES": ("Bearer",),
+    "AUTH_HEADER_NAME": "HTTP_AUTHORIZATION",
+
+    # Firma y algoritmo
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+
+    # Claims
+    "USER_ID_FIELD": "id",
+    "USER_ID_CLAIM": "user_id",
+    "TOKEN_TYPE_CLAIM": "token_type",
+    "JTI_CLAIM": "jti",
+
+    # Clase de usuario del token
+    "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
+}

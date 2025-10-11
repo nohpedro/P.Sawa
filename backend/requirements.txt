@@ -30,3 +30,5 @@ black>=24.4
 # --- Extras útiles ---
 ipython>=8.0
 django-extensions>=3.2
+
+djangorestframework-simplejwt>=5.3
