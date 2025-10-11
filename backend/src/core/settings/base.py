@@ -23,8 +23,9 @@ INSTALLED_APPS = [
     "drf_spectacular_sidecar",
 
     # Local apps
-    "core",  # incluimos core para el health_check
+    "core",
     "common_vap",
+    "users",
 ]
 
 # === Middleware ===
