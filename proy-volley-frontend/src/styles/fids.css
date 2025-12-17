@@ -1,0 +1,69 @@
+/* =========================
+   FIDS BOARD (Airport style)
+   ========================= */
+
+.fids-board {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.fids-header {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
+  padding: var(--space-sm) var(--space-md);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 1px;
+  background: #0c1220;
+  border-bottom: 1px solid var(--color-border);
+  text-transform: uppercase;
+}
+
+.fids-row {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--color-border);
+  align-items: center;
+  font-family: var(--font-mono);
+}
+
+.fids-row:last-child {
+  border-bottom: none;
+}
+
+.fids-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.fids-cell {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Status badges */
+
+.fids-status {
+  font-weight: 700;
+  letter-spacing: 0.8px;
+}
+
+.fids-status.available {
+  color: var(--status-available);
+}
+
+.fids-status.occupied {
+  color: var(--status-occupied);
+}
+
+.fids-status.upcoming {
+  color: var(--status-upcoming);
+}
+
+.fids-status.unavailable {
+  color: var(--status-unavailable);
+}

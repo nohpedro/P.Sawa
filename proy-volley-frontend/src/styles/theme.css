@@ -1,0 +1,41 @@
+/* =========================
+   THEME VARIABLES (FIDS)
+   ========================= */
+
+:root {
+  /* Tipografía */
+  --font-base: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, Ubuntu, Cantarell, "Helvetica Neue", Arial, sans-serif;
+
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Colores base */
+  --color-bg: #0b0e14;
+  --color-surface: #0f1420;
+  --color-border: #1f2430;
+
+  --color-text: #eaeaea;
+  --color-text-muted: #9aa4b2;
+
+  --color-accent: #ffd24a;
+
+  /* Estados (tipo vuelos) */
+  --status-available: #4caf50;
+  --status-occupied: #f44336;
+  --status-upcoming: #ff9800;
+  --status-unavailable: #9e9e9e;
+
+  /* Sombras */
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.35);
+
+  /* Bordes */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 10px;
+
+  /* Espaciado */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 16px;
+  --space-lg: 24px;
+}

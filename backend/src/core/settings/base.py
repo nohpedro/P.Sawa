@@ -25,6 +25,7 @@ INSTALLED_APPS = [
     "drf_spectacular",
     "drf_spectacular_sidecar",
     "rest_framework_simplejwt",
+    "corsheaders",
 
     # Apps locales
     "core",
@@ -37,6 +38,7 @@ INSTALLED_APPS = [
 # === Middleware ===
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "corsheaders.middleware.CorsMiddleware",  # <-- AQUI
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -177,3 +179,41 @@ SIMPLE_JWT = {
     # Clase de usuario del token
     "TOKEN_USER_CLASS": "rest_framework_simplejwt.models.TokenUser",
 }
+
+# === CORS ===
+
+CORS_ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]
+
+# Permitir envío de cookies/Authorization si lo necesitas
+CORS_ALLOW_CREDENTIALS = True
+
+# Headers permitidos (JWT usa Authorization)
+CORS_ALLOW_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+]
+
+# Métodos permitidos
+CORS_ALLOW_METHODS = [
+    "DELETE",
+    "GET",
+    "OPTIONS",
+    "PATCH",
+    "POST",
+    "PUT",
+]
+
+CSRF_TRUSTED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+]

@@ -31,7 +31,7 @@ black>=24.4
 # --- Extras útiles ---
 ipython>=8.0
 django-extensions==4.1
-django-cors-headers==4.7.0
+django-cors-headers>=4.3
 Pillow==11.2.1
 
 # --- JWT / Seguridad ---
