@@ -7,9 +7,8 @@ export default function PublicOnlyRoute() {
 
   if (loading) return null;
 
-  // TEMPORAL: como aún no existe /availability, mantenemos al usuario en login
   if (isAuthenticated) {
-    return <Navigate to={PATHS.login} replace />;
+    return <Navigate to={PATHS.availability} replace />;
   }
 
   return <Outlet />;
