@@ -1,20 +1,21 @@
 # --- Framework principal ---
-Django>=5.0,<6.0
-djangorestframework>=3.15,<3.16
-
+Django==5.2.3
+djangorestframework==3.16.0
+django-filter>=24.2
 # --- Documentación OpenAPI / Swagger ---
-drf-spectacular>=0.27.2
-drf-spectacular-sidecar>=2024.7.1
+drf-spectacular==0.28.0
+drf-spectacular-sidecar>=2024.7.1  # no aparece en pip freeze (¿lo usas?)
+drf-yasg==1.21.10  # agregado desde tu entorno
 
 # --- Base de datos ---
-psycopg2-binary>=2.9,<3.0
+psycopg2-binary>=2.9,<3.0  # no aparece en freeze, agrégalo si usas PostgreSQL
 
 # --- Servidor WSGI / producción ---
-gunicorn>=22.0,<23.0
+gunicorn>=22.0,<23.0  # no aparece en freeze (agregar para despliegue)
 
 # --- Configuración y utilidades ---
 python-dotenv>=1.0
-pytz>=2024.1
+pytz==2025.2
 
 # --- Testing y QA ---
 pytest>=8.0
@@ -29,6 +30,24 @@ black>=24.4
 
 # --- Extras útiles ---
 ipython>=8.0
-django-extensions>=3.2
+django-extensions==4.1
+django-cors-headers==4.7.0
+Pillow==11.2.1
 
-djangorestframework-simplejwt>=5.3
+# --- JWT / Seguridad ---
+djangorestframework-simplejwt==5.5.0
+PyJWT==2.9.0
+
+# --- Dependencias de esquema JSON / utilidades ---
+attrs==25.3.0
+jsonschema==4.25.0
+jsonschema-specifications==2025.4.1
+packaging==25.0
+PyYAML==6.0.2
+referencing==0.36.2
+rpds-py==0.27.0
+sqlparse==0.5.3
+tzdata==2025.2
+uritemplate==4.2.0
+asgiref==3.8.1
+inflection==0.5.1

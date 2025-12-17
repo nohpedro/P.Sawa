@@ -31,6 +31,7 @@ INSTALLED_APPS = [
     "common_vap",
     "users",
     "auth_vap",
+    "espacios",
 ]
 
 # === Middleware ===

@@ -1,7 +1,6 @@
 import uuid
 from django.db import models
 from django.utils import timezone
-from django_extensions.db.models import TimeStampedModel
 
 
 class TimestampModel(models.Model):
@@ -29,15 +28,15 @@ class SoftDeleteModel(models.Model):
     class Meta:
         abstract = True
 
-    def deleted(self,using=None,keep_parents=False):
+    def soft_delete(self, using=None, keep_parents=False):
         self.is_deleted = True
-        update_fields=['is_deleted']
+        update_fields = ['is_deleted']
         if hasattr(self, "updated_at"):
             update_fields.append("updated_at")
         self.save(update_fields=update_fields)
 
-class BaseModel(UUIDModel,TimeStampedModel,SoftDeleteModel):
-    class Meta(UUIDModel.Meta,TimeStampedModel.Meta,SoftDeleteModel.Meta):
+class BaseModel(UUIDModel, TimestampModel, SoftDeleteModel):
+    class Meta(UUIDModel.Meta, TimestampModel.Meta, SoftDeleteModel.Meta):
         abstract = True
     
 

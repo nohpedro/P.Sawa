@@ -5,7 +5,6 @@ from django.dispatch import receiver
 
 from common_vap.models import BaseModel
 
-
 class Cliente(BaseModel):
     """
     Perfil extendido del usuario.
@@ -34,9 +33,6 @@ def create_or_update_cliente(sender, instance, created, **kwargs):
     from django.db import transaction
 
     def _ensure_cliente():
-        if not hasattr(instance, "cliente"):
-            Cliente.objects.create(user=instance)
-        else:
-            instance.cliente.save()
+        Cliente.objects.get_or_create(user=instance)
 
     transaction.on_commit(_ensure_cliente)
