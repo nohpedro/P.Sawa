@@ -13,6 +13,8 @@ import AvailabilityPage from "../pages/Availability/AvailabilityPage";
 import SpacesPage from "../pages/Admin/SpacesPage";
 import ActivitiesPage from "../pages/Admin/ActivitiesPage";
 import SpaceActivitiesPage from "../pages/Admin/SpaceActivitiesPage";
+import CustomersPage from "../pages/Customers/CustomersPage.tsx";
+import CustomerDetailPage from "../pages/Customers/CustomerDetailPage.tsx";
 
 export const routes = [
   {
@@ -40,6 +42,8 @@ export const routes = [
           { path: PATHS.adminEspacios, element: <SpacesPage /> },
           { path: PATHS.adminActividades, element: <ActivitiesPage /> },
           { path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> },
+          { path: PATHS.customers, element: <CustomersPage /> },
+          { path: PATHS.customerDetail, element: <CustomerDetailPage /> },
         ],
       },
     ],

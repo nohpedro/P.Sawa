@@ -52,32 +52,37 @@ export default function AvailabilityPage() {
           <div className="fids-cell">Estado</div>
         </div>
 
-        {(data?.results ?? []).map((esp) => {
-          const estado = (esp.estado ?? "").toLowerCase();
+{(data?.results ?? []).map((esp) => {
+  const estadoRaw = (esp.estado_actual ?? "").toLowerCase();
 
-          // mapeo simple a clases (puedes afinar luego)
-          const statusClass =
-            estado.includes("dispon") ? "available" :
-            estado.includes("ocup") ? "occupied" :
-            estado.includes("prox") ? "upcoming" :
-            "unavailable";
+  let statusClass = "status-unavailable";
+  const statusLabel = esp.estado_actual ?? "—";
 
-          return (
-            <div key={esp.id} className="fids-row">
-              <div className="fids-cell">{esp.nombre}</div>
-              <div className="fids-cell">
-                {esp.actividades?.length
-                  ? esp.actividades.map((a) => a.nombre).join(", ")
-                  : "—"}
-              </div>
-              <div className="fids-cell">{esp.capacidad ?? "—"}</div>
-              <div className="fids-cell">{esp.ubicacion ?? "—"}</div>
-              <div className={`fids-cell fids-status ${statusClass}`}>
-                {esp.estado ?? "—"}
-              </div>
-            </div>
-          );
-        })}
+  if (estadoRaw.includes("libre")) {
+    statusClass = "status-libre";
+  } else if (estadoRaw.includes("ocupado")) {
+    statusClass = "status-ocupado";
+  } else if (estadoRaw.includes("no")) {
+    statusClass = "status-no-disponible";
+  }
+
+  return (
+    <div key={esp.id} className="fids-row">
+      <div className="fids-cell">{esp.nombre}</div>
+      <div className="fids-cell">
+        {esp.actividades?.length
+          ? esp.actividades.map((a) => a.nombre).join(", ")
+          : "—"}
+      </div>
+      <div className="fids-cell">{esp.capacidad ?? "—"}</div>
+      <div className="fids-cell">{esp.ubicacion ?? "—"}</div>
+
+      <div className={`fids-cell fids-status ${statusClass}`}>
+        {statusLabel}
+      </div>
+    </div>
+  );
+})}
 
         {!loading && (data?.results?.length ?? 0) === 0 && (
           <div style={{ padding: 16, opacity: 0.8 }}>

@@ -1,12 +1,12 @@
 import { useCallback, useState } from "react";
-import espaciosService from "../services/espacios.service";
-import type { Espacio, EspacioWriteDTO } from "../models/espacio";
+import clientesService from "../services/clientes.service";
+import type { Cliente, ClienteWriteDTO } from "../models/cliente";
 import type { PaginatedResponse } from "../models/pagination";
 import { getErrorMessage } from "../utils/error";
 
-export function useEspacios() {
-  const [data, setData] = useState<PaginatedResponse<Espacio> | null>(null);
-  const [current, setCurrent] = useState<Espacio | null>(null);
+export function useClientes() {
+  const [data, setData] = useState<PaginatedResponse<Cliente> | null>(null);
+  const [current, setCurrent] = useState<Cliente | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -14,11 +14,11 @@ export function useEspacios() {
     setLoading(true);
     setError(null);
     try {
-      const res = await espaciosService.list(params);
+      const res = await clientesService.list(params);
       setData(res);
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al listar espacios"));
+      setError(getErrorMessage(e, "Error al listar clientes"));
       throw e;
     } finally {
       setLoading(false);
@@ -29,54 +29,55 @@ export function useEspacios() {
     setLoading(true);
     setError(null);
     try {
-      const res = await espaciosService.get(id);
+      const res = await clientesService.get(id);
       setCurrent(res);
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al obtener espacio"));
+      setError(getErrorMessage(e, "Error al obtener cliente"));
       throw e;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const create = useCallback(async (payload: EspacioWriteDTO) => {
+  const create = useCallback(async (payload: ClienteWriteDTO) => {
     setLoading(true);
     setError(null);
     try {
-      return await espaciosService.create(payload);
+      const res = await clientesService.create(payload);
+      return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al crear espacio"));
+      setError(getErrorMessage(e, "Error al crear cliente"));
       throw e;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const update = useCallback(async (id: string, payload: EspacioWriteDTO) => {
+  const update = useCallback(async (id: string, payload: ClienteWriteDTO) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await espaciosService.update(id, payload);
+      const res = await clientesService.update(id, payload);
       setCurrent(res);
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al actualizar espacio"));
+      setError(getErrorMessage(e, "Error al actualizar cliente"));
       throw e;
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const patch = useCallback(async (id: string, payload: Partial<EspacioWriteDTO>) => {
+  const patch = useCallback(async (id: string, payload: Partial<ClienteWriteDTO>) => {
     setLoading(true);
     setError(null);
     try {
-      const res = await espaciosService.patch(id, payload);
+      const res = await clientesService.patch(id, payload);
       setCurrent(res);
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al editar espacio"));
+      setError(getErrorMessage(e, "Error al editar cliente"));
       throw e;
     } finally {
       setLoading(false);
@@ -87,9 +88,9 @@ export function useEspacios() {
     setLoading(true);
     setError(null);
     try {
-      await espaciosService.remove(id);
+      await clientesService.remove(id);
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al eliminar espacio"));
+      setError(getErrorMessage(e, "Error al eliminar cliente"));
       throw e;
     } finally {
       setLoading(false);

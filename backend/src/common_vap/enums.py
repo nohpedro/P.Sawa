@@ -5,8 +5,15 @@ class EspaciosEstado(TextChoices):
     MANTENIMIENTO = "MANTENIMIENTO", "Mantenimiento"
     FUERA_DE_SERVICIO = "FUERA_DE_SERVICIO", "Fuera de servicio"
 
-class ReservasEstado(TextChoices):
-    PENDIENTE = "PENDIENTE", "Pendiente"
-    CONFIRMADA = "CONFIRMADA", "Confirmada"
+class ReservaEstado(TextChoices):
+    # workflow
+    PENDIENTE = "PENDIENTE", "Pendiente"        # cliente solicita
+    CONFIRMADA = "CONFIRMADA", "Confirmada"     # admin confirma / reserva creada por admin
+
+    # ciclo de vida
+    ACTIVA = "ACTIVA", "Activa"                 # cuando inicio <= ahora < fin
+    FINALIZADA = "FINALIZADA", "Finalizada"     # cuando fin <= ahora
+
+    # cierre
     CANCELADA = "CANCELADA", "Cancelada"
     NO_SHOW = "NO_SHOW", "No show"

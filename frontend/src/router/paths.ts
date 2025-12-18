@@ -7,6 +7,8 @@ export const PATHS = {
   adminEspacios: "/admin/espacios",
   adminActividades: "/admin/actividades",
   adminEspacioActividad: "/admin/espacio-actividad",
+  customers: "/admin/clientes",
+  customerDetail: "/admin/clientes/:id",
 
   notFound: "*",
 } as const;

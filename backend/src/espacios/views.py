@@ -30,7 +30,6 @@ from .serializers import (
     ReservaSerializer,
 )
 
-# Configuración común
 AUTH = (AccessTokenAuthentication,)
 PERMS = (IsAdminOrReadOnly,)
 BACKENDS = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)
@@ -58,7 +57,8 @@ class TipoActividadViewSet(viewsets.ModelViewSet):
     tags=["Espacios"],
     description=(
         "CRUD de espacios físicos (canchas/salas). "
-        "Incluye actividades vinculadas en lectura y admite asociarlas por IDs en escritura."
+        "Incluye actividades vinculadas en lectura, y expone `estado_actual` (LIBRE/OCUPADO/NO_DISPONIBLE) "
+        "calculado según el estado operativo y reservas vigentes."
     ),
 )
 class EspacioViewSet(viewsets.ModelViewSet):
@@ -73,7 +73,7 @@ class EspacioViewSet(viewsets.ModelViewSet):
     filter_backends = BACKENDS
     search_fields = ("nombre", "ubicacion", "tags", "descripcion")
     ordering_fields = ("nombre", "capacidad", "created_at")
-    filterset_fields = ("estado", "capacidad")
+    filterset_fields = ("estado_operativo", "capacidad")
 
 
 @extend_schema(
@@ -203,8 +203,10 @@ class PromocionViewSet(viewsets.ModelViewSet):
 @extend_schema(
     tags=["Espacios - Reservas"],
     description=(
-        "CRUD de reservas/usos: registra qué cliente usa qué espacio y en qué rango. "
-        "El cliente se deriva del usuario autenticado (user.cliente). "
+        "CRUD de reservas/usos: registra qué usuario usa qué espacio y en qué rango.\n\n"
+        "- Admin (is_staff): puede crear reservas para cualquier usuario enviando `usuario` en el body; "
+        "se crea en estado CONFIRMADA.\n"
+        "- No admin: siempre crea/edita reservas para sí mismo; se crea en estado PENDIENTE.\n\n"
         "Incluye filtro por `desde`/`hasta` (YYYY-MM-DD) para traer reservas que intersecten el rango."
     ),
     parameters=[
@@ -225,22 +227,24 @@ class PromocionViewSet(viewsets.ModelViewSet):
     ],
 )
 class ReservaViewSet(viewsets.ModelViewSet):
-    queryset = Reserva.objects.select_related("espacio", "usuario")
+    queryset = Reserva.objects.select_related("espacio", "usuario", "cliente", "actividad")
     serializer_class = ReservaSerializer
     authentication_classes = AUTH
     permission_classes = PERMS
     filter_backends = BACKENDS
 
-    search_fields = ("espacio__nombre", "notas")
+    search_fields = ("espacio__nombre", "notas", "usuario__username")
     ordering_fields = ("inicio", "fin", "created_at")
-    filterset_fields = ("espacio", "estado")
+    filterset_fields = ("espacio", "estado_reserva")
 
     def get_queryset(self):
         qs = super().get_queryset()
 
+        # Cliente ve solo sus reservas; admin ve todas
         if not self.request.user.is_staff:
             qs = qs.filter(usuario=self.request.user)
 
+        # filtros por rango de fechas (?desde=YYYY-MM-DD&hasta=YYYY-MM-DD)
         desde_str = self.request.query_params.get("desde")
         hasta_str = self.request.query_params.get("hasta")
 
@@ -259,6 +263,3 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(inicio__lte=end_dt)
 
         return qs
-
-    def perform_create(self, serializer):
-        serializer.save(usuario=self.request.user)

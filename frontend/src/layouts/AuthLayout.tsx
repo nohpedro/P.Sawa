@@ -13,6 +13,7 @@ import {
   FiMap,
   FiLayers,
   FiCalendar,
+  FiUsers,
 } from "react-icons/fi";
 
 export default function AuthLayout() {
@@ -52,6 +53,16 @@ export default function AuthLayout() {
           label: "Designacion de Actividades",
           to: PATHS.adminEspacioActividad,
           icon: FiCalendar,
+        },
+      ],
+    },
+          {
+      title: "Clientes",
+      items: [
+        {
+          label: "Clientes",
+          to: PATHS.customers,
+          icon: FiUsers,
         },
       ],
     },

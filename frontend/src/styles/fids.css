@@ -1,69 +1,89 @@
 /* =========================
-   FIDS BOARD (Airport style)
+   FIDS BOARD (Airport Style)
    ========================= */
 
 .fids-board {
-  background: var(--color-surface);
+  display: grid;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  border-radius: 14px;
   overflow: hidden;
+  background: radial-gradient(ellipse at top, #0c1220 0%, #05070d 100%);
+  font-family: "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
+/* Header */
 .fids-header {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
-  padding: var(--space-sm) var(--space-md);
-  font-family: var(--font-mono);
-  font-size: 12px;
-  letter-spacing: 1px;
-  background: #0c1220;
-  border-bottom: 1px solid var(--color-border);
-  text-transform: uppercase;
+  grid-template-columns: 1.5fr 2fr 1fr 1.5fr 1fr;
+  background: linear-gradient(to bottom, #10182b, #0b1020);
+  border-bottom: 1px solid rgba(255,255,255,0.08);
 }
 
+.fids-header .fids-cell {
+  font-size: 12px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+/* Rows */
 .fids-row {
   display: grid;
-  grid-template-columns: 2fr 2fr 1fr 1fr 1fr;
-  padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--color-border);
-  align-items: center;
-  font-family: var(--font-mono);
+  grid-template-columns: 1.5fr 2fr 1fr 1.5fr 1fr;
+  transition: background 0.15s ease;
 }
 
-.fids-row:last-child {
-  border-bottom: none;
+.fids-row:nth-child(even) {
+  background: rgba(255,255,255,0.02);
 }
 
 .fids-row:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255,255,255,0.05);
 }
 
+/* Cells */
 .fids-cell {
+  padding: 14px 16px;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
-/* Status badges */
+/* =========================
+   STATUS STYLES (NEON)
+   ========================= */
 
 .fids-status {
-  font-weight: 700;
-  letter-spacing: 0.8px;
+  font-weight: 900;
+  text-align: center;
+  letter-spacing: 1px;
+  border-radius: 8px;
+  margin: 6px;
+  padding: 10px 8px;
 }
 
-.fids-status.available {
-  color: var(--status-available);
+.status-libre {
+  color: #2cff4a;
+  text-shadow:
+    0 0 6px rgba(44, 255, 74, 0.9),
+    0 0 14px rgba(44, 255, 74, 0.6);
 }
 
-.fids-status.occupied {
-  color: var(--status-occupied);
+.status-ocupado {
+  color: #ff3b3b;
+  text-shadow:
+    0 0 6px rgba(255, 59, 59, 0.9),
+    0 0 14px rgba(255, 59, 59, 0.6);
 }
 
-.fids-status.upcoming {
-  color: var(--status-upcoming);
+/* ⚪ NO DISPONIBLE – gris */
+.status-no-disponible {
+  color: #b0b0b0;
+  text-shadow: 0 0 4px rgba(180,180,180,0.35);
 }
 
-.fids-status.unavailable {
-  color: var(--status-unavailable);
+/* Fallback */
+.status-unavailable {
+  color: #888;
 }
