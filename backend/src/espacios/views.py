@@ -203,7 +203,8 @@ class PromocionViewSet(viewsets.ModelViewSet):
 @extend_schema(
     tags=["Espacios - Reservas"],
     description=(
-        "CRUD de reservas/usos: registra qué usuario/cliente usa qué espacio y en qué rango. "
+        "CRUD de reservas/usos: registra qué cliente usa qué espacio y en qué rango. "
+        "El cliente se deriva del usuario autenticado (user.cliente). "
         "Incluye filtro por `desde`/`hasta` (YYYY-MM-DD) para traer reservas que intersecten el rango."
     ),
     parameters=[
@@ -229,12 +230,17 @@ class ReservaViewSet(viewsets.ModelViewSet):
     authentication_classes = AUTH
     permission_classes = PERMS
     filter_backends = BACKENDS
-    search_fields = ("espacio__nombre", "usuario__username", "notas")
+
+    search_fields = ("espacio__nombre", "notas")
     ordering_fields = ("inicio", "fin", "created_at")
-    filterset_fields = ("espacio", "usuario", "estado")
+    filterset_fields = ("espacio", "estado")
 
     def get_queryset(self):
         qs = super().get_queryset()
+
+        if not self.request.user.is_staff:
+            qs = qs.filter(usuario=self.request.user)
+
         desde_str = self.request.query_params.get("desde")
         hasta_str = self.request.query_params.get("hasta")
 
@@ -253,3 +259,6 @@ class ReservaViewSet(viewsets.ModelViewSet):
                 qs = qs.filter(inicio__lte=end_dt)
 
         return qs
+
+    def perform_create(self, serializer):
+        serializer.save(usuario=self.request.user)

@@ -1,12 +1,12 @@
 from django.db.models import TextChoices
 
 class EspaciosEstado(TextChoices):
-    DISPONIBLE="Disponible","DISPONIBLE"
-    MANTENIMIENTO="Mantenito","MANTENIMIENTO"
-    FUERA_DE_SERVICIO= "Fuera de servicio","FUERA_DE_SERVICIO"
+    DISPONIBLE = "DISPONIBLE", "Disponible"
+    MANTENIMIENTO = "MANTENIMIENTO", "Mantenimiento"
+    FUERA_DE_SERVICIO = "FUERA_DE_SERVICIO", "Fuera de servicio"
 
 class ReservasEstado(TextChoices):
-    PENDIENTE="Pendiente","PENDIENTE"
-    CONFIRMADA="Confirmada","CONFIRMADA"
-    CANCELA="Cancelada","CANCELA"
-    NO_SHOW="No show","NO_SHOW"
+    PENDIENTE = "PENDIENTE", "Pendiente"
+    CONFIRMADA = "CONFIRMADA", "Confirmada"
+    CANCELADA = "CANCELADA", "Cancelada"
+    NO_SHOW = "NO_SHOW", "No show"

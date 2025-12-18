@@ -141,11 +141,9 @@ class PromocionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError("Si 'aplica_todos' es False, debes indicar al menos un espacio.")
         return attrs
 
-
 class ReservaSerializer(serializers.ModelSerializer):
     espacio_nombre = serializers.ReadOnlyField(source="espacio.nombre")
     usuario_username = serializers.ReadOnlyField(source="usuario.get_username")
-    # Si quieres exponer datos del perfil Cliente (siempre existe por tu signal)
     cliente_nombre = serializers.SerializerMethodField()
     cliente_apellido = serializers.SerializerMethodField()
 
@@ -162,9 +160,32 @@ class ReservaSerializer(serializers.ModelSerializer):
             "notas",
             "created_at", "updated_at",
         )
+        read_only_fields = ("usuario",)
 
-    def get_cliente_nombre(self, obj):
+    def validate(self, attrs):
+        """
+        Validación defensiva (además de la validación en el modelo):
+        - fin debe ser posterior a inicio
+        """
+        inicio = attrs.get("inicio") or getattr(self.instance, "inicio", None)
+        fin = attrs.get("fin") or getattr(self.instance, "fin", None)
+        if inicio and fin and fin <= inicio:
+            raise serializers.ValidationError({"fin": "La fecha/hora fin debe ser posterior a inicio."})
+        return attrs
+
+    def create(self, validated_data):
+        """
+        Fuerza usuario desde el token (no se acepta usuario desde el body).
+        """
+        request = self.context.get("request")
+        if request and request.user and request.user.is_authenticated:
+            validated_data["usuario"] = request.user
+        else:
+            raise serializers.ValidationError("Usuario no autenticado.")
+        return super().create(validated_data)
+
+    def get_cliente_nombre(self, obj: Reserva) -> str:
         return getattr(getattr(obj.usuario, "cliente", None), "nombre", "")
 
-    def get_cliente_apellido(self, obj):
+    def get_cliente_apellido(self, obj: Reserva) -> str:
         return getattr(getattr(obj.usuario, "cliente", None), "apellido", "")

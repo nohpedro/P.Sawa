@@ -7,6 +7,7 @@ from django.core.validators import MinValueValidator, MaxValueValidator
 
 from common_vap.models import BaseModel
 from common_vap.enums import EspaciosEstado  # Debe exponer .choices (TextChoices)
+from users.models import Cliente
 
 
 # ---------------------
@@ -247,33 +248,21 @@ class ReservaEstado(models.TextChoices):
     CANCELADA = "CANCELADA", "Cancelada"
     FINALIZADA = "FINALIZADA", "Finalizada"
 
-
 class Reserva(BaseModel):
-    """
-    Registra qué usuario/cliente usa qué espacio y en qué rango de tiempo.
-    Por ahora el cliente no "usa el sistema"; esto sirve para tener trazabilidad.
-
-    - usuario: settings.AUTH_USER_MODEL (el perfil Cliente se obtiene con user.cliente)
-    - actividad: opcional (qué deporte se realizará). Si luego quieres precio/duración real,
-      conviene apuntar a EspacioActividad en vez de TipoActividad.
-    """
     espacio = models.ForeignKey(Espacio, on_delete=models.PROTECT, related_name="reservas")
     usuario = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="reservas")
-    actividad = models.ForeignKey(TipoActividad, on_delete=models.PROTECT, null=True, blank=True)
+    cliente = models.ForeignKey(Cliente, on_delete=models.PROTECT, related_name="reservas", null=True, blank=True)
 
+    actividad = models.ForeignKey(TipoActividad, on_delete=models.PROTECT, null=True, blank=True)
     inicio = models.DateTimeField()
     fin = models.DateTimeField()
     estado = models.CharField(max_length=20, choices=ReservaEstado.choices, default=ReservaEstado.RESERVADA)
     notas = models.TextField(blank=True)
 
     class Meta:
-        db_table = "espacios_reserva"
-        verbose_name = "Reserva"
-        verbose_name_plural = "Reservas"
-        ordering = ["-inicio"]
         indexes = [
             models.Index(fields=["espacio", "inicio", "fin"]),
-            models.Index(fields=["usuario", "inicio"]),
+            models.Index(fields=["cliente", "inicio"]),  # 👈 cambia usuario por cliente
             models.Index(fields=["estado"]),
         ]
 
