@@ -87,3 +87,7 @@
 .status-unavailable {
   color: #888;
 }
+.fids-board.fids-reservas .fids-header,
+.fids-board.fids-reservas .fids-row {
+  grid-template-columns: 1.4fr 1.2fr 1fr 1fr 1fr 1.2fr;
+}

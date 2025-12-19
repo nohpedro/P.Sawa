@@ -1,30 +1,41 @@
-export type ReservaEstado = "RESERVADA" | "ACTIVA" | "CANCELADA" | "FINALIZADA";
+export type ReservaEstado = "PENDIENTE" | "CONFIRMADA" | "CANCELADA" | "FINALIZADA";
 
 export interface Reserva {
   id: string; // UUID
+
   espacio: string; // UUID
   espacio_nombre?: string;
 
-  usuario: string; // UUID
+  usuario: number; // según tu API (viene como 3)
   usuario_username?: string;
 
-  actividad: string | null; // UUID TipoActividad o null
+  // datos del cliente (solo lectura en response)
+  cliente_nombre?: string;
+  cliente_apellido?: string;
 
+  actividad: string; // UUID
   inicio: string; // ISO
-  fin: string;    // ISO
+  fin: string; // ISO
 
-  estado: ReservaEstado;
+  estado_reserva: ReservaEstado;
+
   notas: string;
 
   created_at: string; // ISO
   updated_at: string; // ISO
 }
 
-export interface ReservaCreateDTO {
-  espacio: string;
-  usuario?: string;   // admin only (self-service: backend lo toma del token)
-  actividad: string;
-  inicio: string;     // ISO
-  bloques: number;    // 1 = base; 2 = doble; etc.
+/**
+ * DTO para crear/editar reservas
+ * - Admin puede enviar "usuario"
+ * - No-admin: backend ignora usuario y toma del token (por eso usuario es opcional)
+ */
+export interface ReservaWriteDTO {
+  espacio: string;      // UUID
+  usuario?: number;
+  cliente: string;
+  actividad: string;    // UUID
+  inicio: string;       // ISO
+  fin: string;          // ISO
   notas?: string;
 }

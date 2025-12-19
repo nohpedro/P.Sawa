@@ -14,6 +14,7 @@ import {
   FiLayers,
   FiCalendar,
   FiUsers,
+  FiBox,
 } from "react-icons/fi";
 
 export default function AuthLayout() {
@@ -63,6 +64,16 @@ export default function AuthLayout() {
           label: "Clientes",
           to: PATHS.customers,
           icon: FiUsers,
+        },
+      ],
+    },
+    {
+      title: "Reservacion",
+      items: [
+        {
+          label: "Reserva",
+          to: PATHS.reservations,
+          icon: FiBox,
         },
       ],
     },

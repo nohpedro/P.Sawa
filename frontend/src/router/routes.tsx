@@ -15,6 +15,7 @@ import ActivitiesPage from "../pages/Admin/ActivitiesPage";
 import SpaceActivitiesPage from "../pages/Admin/SpaceActivitiesPage";
 import CustomersPage from "../pages/Customers/CustomersPage.tsx";
 import CustomerDetailPage from "../pages/Customers/CustomerDetailPage.tsx";
+import ReservationsPage from "../pages/Reservations/ReservationsPage.tsx";
 
 export const routes = [
   {
@@ -44,6 +45,7 @@ export const routes = [
           { path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> },
           { path: PATHS.customers, element: <CustomersPage /> },
           { path: PATHS.customerDetail, element: <CustomerDetailPage /> },
+          { path: PATHS.reservations, element: <ReservationsPage /> },
         ],
       },
     ],

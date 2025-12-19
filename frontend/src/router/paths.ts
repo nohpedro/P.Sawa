@@ -9,6 +9,7 @@ export const PATHS = {
   adminEspacioActividad: "/admin/espacio-actividad",
   customers: "/admin/clientes",
   customerDetail: "/admin/clientes/:id",
+  reservations: "/reservas",
 
   notFound: "*",
 } as const;
