@@ -1,3 +1,4 @@
+// src/components/reservas/ReservaForm.tsx
 import { useEffect, useMemo, useState } from "react";
 import Card from "../ui/Card";
 import Select from "../ui/Select";
@@ -12,14 +13,14 @@ import { useClientes } from "../../hooks/useClientes";
 
 import type { ReservaWriteDTO } from "../../models/reserva";
 import type { Espacio } from "../../models/espacio";
-import { espacioTieneActividad } from "../../utils/reservas";
+import { espacioTieneActividad, calcularCostoPorHora, calcularCostoPorBloques } from "../../utils/reservas";
 import { combineDateAndTimeToISO } from "../../utils/date";
-import { calcularCostoPorHora, calcularCostoPorBloques } from "../../utils/reservas";
 
 import ClientePicker from "../clientes/ClientePicker";
 import QuickCreateClienteModal from "../clientes/QuickCreateClienteModal";
 import type { ClienteWriteDTO } from "../../models/cliente";
 
+import { extractErrorMessage, humanizeReservaError } from "../../utils/apiError";
 export default function ReservaForm({
   day,
   onSubmit,
@@ -55,14 +56,12 @@ export default function ReservaForm({
     return (espacios.data?.results ?? []).find((e) => e.id === espacioId) ?? null;
   }, [espacios.data, espacioId]);
 
-  // relaciones EA del espacio para costo por bloques
   useEffect(() => {
     if (!espacioId) return;
     ea.list({ page: "1", espacio: espacioId }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [espacioId]);
 
-  // Mostrar SOLO actividades que tiene el espacio (más humano)
   const actividadesDisponiblesParaEspacio = useMemo(() => {
     const all = tipos.data?.results ?? [];
     if (!espacioObj) return [];
@@ -77,7 +76,10 @@ export default function ReservaForm({
 
   const actividadOptions = useMemo(() => {
     const res = actividadesDisponiblesParaEspacio;
-    return [{ label: espacioId ? "Selecciona actividad..." : "Selecciona un espacio primero...", value: "" }, ...res.map((t) => ({ label: t.nombre, value: t.id }))];
+    return [
+      { label: espacioId ? "Selecciona actividad..." : "Selecciona un espacio primero...", value: "" },
+      ...res.map((t) => ({ label: t.nombre, value: t.id })),
+    ];
   }, [actividadesDisponiblesParaEspacio, espacioId]);
 
   const relEA = useMemo(() => {
@@ -139,19 +141,25 @@ export default function ReservaForm({
       return;
     }
 
-    await onSubmit({
-      cliente: clienteId, // ✅ NUEVO
+    const payload: ReservaWriteDTO = {
+      cliente: clienteId,
       espacio: espacioId,
       actividad: actividadId,
       inicio: inicioISO,
       fin: finISO,
       notas: notas.trim() || undefined,
-    });
+    };
+
+    try {
+      await onSubmit(payload);
+    } catch (err) {
+      const raw = extractErrorMessage(err);
+      setUiError(humanizeReservaError(raw));
+    }
   };
 
   const onQuickCreateCliente = async (payload: ClienteWriteDTO) => {
     const created = await clientes.create(payload);
-    // refresca lista y selecciona el nuevo
     await clientes.list({ page: "1" });
     setClienteId(created.id);
     return created;
@@ -163,7 +171,6 @@ export default function ReservaForm({
     <div style={{ display: "grid", gap: 16 }}>
       <Card title="Nueva reserva" subtitle={`Día seleccionado: ${day}`}>
         <div style={{ display: "grid", gap: 14 }}>
-          {/* CLIENTE */}
           <ClientePicker
             clientes={clientesList}
             selectedId={clienteId}
@@ -172,7 +179,6 @@ export default function ReservaForm({
             loading={loading || clientes.loading}
           />
 
-          {/* ESPACIO */}
           <Select
             label="Espacio"
             options={espacioOptions}
@@ -180,11 +186,10 @@ export default function ReservaForm({
             onChange={(e) => {
               const v = e.target.value;
               setEspacioId(v);
-              setActividadId(""); // reset actividad al cambiar espacio
+              setActividadId("");
             }}
           />
 
-          {/* ACTIVIDAD */}
           <Select
             label="Actividad"
             options={actividadOptions}
@@ -195,7 +200,7 @@ export default function ReservaForm({
 
           {!actividadValida && (
             <div style={{ padding: 10, borderRadius: 12, border: "1px solid #ff3b3b", color: "#ff3b3b", fontWeight: 800 }}>
-              Ese espacio no tiene la actividad seleccionada.
+              Ese espacio no tiene asignada la actividad seleccionada.
             </div>
           )}
 
@@ -206,15 +211,7 @@ export default function ReservaForm({
 
           <Input label="Notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional" />
 
-          {/* Costo */}
-          <div
-            style={{
-              border: "1px solid var(--color-border)",
-              borderRadius: 14,
-              padding: 14,
-              background: "rgba(255,255,255,0.02)",
-            }}
-          >
+          <div style={{ border: "1px solid var(--color-border)", borderRadius: 14, padding: 14, background: "rgba(255,255,255,0.02)" }}>
             <div style={{ fontWeight: 950, marginBottom: 6 }}>Costo estimado</div>
 
             {costo.mode === "bloques" ? (
@@ -241,7 +238,7 @@ export default function ReservaForm({
             )}
           </div>
 
-          {uiError && <div style={{ color: "#ff5252", fontSize: 13, fontWeight: 800 }}>{uiError}</div>}
+          {uiError && <div style={{ color: "#ff5252", fontSize: 13, fontWeight: 800, whiteSpace: "pre-line" }}>{uiError}</div>}
 
           <Button onClick={() => void submit()} disabled={loading || !canSubmit} fullWidth>
             {loading ? <Loader label="Guardando..." /> : "Crear reserva"}

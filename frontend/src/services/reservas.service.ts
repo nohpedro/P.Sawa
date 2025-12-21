@@ -8,10 +8,23 @@ export type ReservasQuery = {
   page?: string;
   desde?: string; // YYYY-MM-DD
   hasta?: string; // YYYY-MM-DD
-  espacio?: string; // opcional si backend soporta
-  usuario?: string; // opcional si backend soporta
-  actividad?: string; // opcional si backend soporta
+  espacio?: string;
+  usuario?: string;
+  actividad?: string;
 };
+
+type QueryParams = Record<string, string>;
+
+function cleanParams(params?: ReservasQuery): QueryParams | undefined {
+  if (!params) return undefined;
+
+  const out: QueryParams = {};
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null) continue;
+    out[k] = String(v);
+  }
+  return Object.keys(out).length ? out : undefined;
+}
 
 class ReservasService {
   private readonly request: RequestHandler;
@@ -20,12 +33,9 @@ class ReservasService {
     this.request = requestHandler ?? new RequestHandler();
   }
 
-  /**
-   * Lista reservas (DRF paginado)
-   * Soporta filtros opcionales: desde/hasta (YYYY-MM-DD) si backend los acepta.
-   */
   async list(params?: ReservasQuery): Promise<PaginatedResponse<Reserva>> {
-    return (await this.request.getRequest(ENDPOINT, params as Record<string, string> | undefined)) as PaginatedResponse<Reserva>;
+    const q = cleanParams(params);
+    return (await this.request.getRequest(ENDPOINT, q)) as PaginatedResponse<Reserva>;
   }
 
   async get(id: string): Promise<Reserva> {
@@ -33,12 +43,12 @@ class ReservasService {
   }
 
   /**
-   * Crear reserva:
-   * Backend requiere ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD incluso en POST (según tu especificación).
+   * Crear reserva.
+   * Backend requiere ?desde=YYYY-MM-DD&hasta=YYYY-MM-DD incluso en POST.
    */
-  async create(payload: ReservaWriteDTO, desde: string, hasta: string): Promise<Reserva> {
-    const params: Record<string, string> = { desde, hasta };
-    return (await this.request.postRequest(ENDPOINT, payload, params)) as Reserva;
+  async create(payload: ReservaWriteDTO, params: { desde: string; hasta: string }): Promise<Reserva> {
+    const q = cleanParams(params);
+    return (await this.request.postRequest(ENDPOINT, payload, q)) as Reserva;
   }
 
   async update(id: string, payload: ReservaWriteDTO): Promise<Reserva> {

@@ -30,6 +30,7 @@ from .serializers import (
     ReservaSerializer,
 )
 
+
 AUTH = (AccessTokenAuthentication,)
 PERMS = (IsAdminOrReadOnly,)
 BACKENDS = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)

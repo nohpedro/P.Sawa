@@ -11,15 +11,25 @@ function isoToDate(iso: string): string {
   return iso.slice(0, 10);
 }
 
+/**
+ * Normaliza mensajes de errores de reservas a algo que el usuario entienda.
+ * Aquí manejamos explícitamente el caso:
+ *   {"inicio":["Existe una reserva que se solapa."]}
+ */
+function humanizeReservaError(rawMessage: string): string {
+  const m = rawMessage.toLowerCase();
+  if (m.includes("solapa") || m.includes("solap")) {
+    return "Ese horario ya está reservado. Elige otro rango de horas.";
+  }
+  return rawMessage;
+}
+
 export function useReservas() {
   const [data, setData] = useState<PaginatedResponse<Reserva> | null>(null);
   const [current, setCurrent] = useState<Reserva | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /**
-   * Listar reservas (con filtros desde / hasta)
-   */
   const list = useCallback(
     async (params?: {
       page?: string;
@@ -36,8 +46,10 @@ export function useReservas() {
         setData(res);
         return res;
       } catch (e: unknown) {
-        setError(getErrorMessage(e, "Error al listar reservas"));
-        throw e;
+        const raw = getErrorMessage(e, "Error al listar reservas");
+        const msg = humanizeReservaError(raw);
+        setError(msg);
+        throw new Error(msg);
       } finally {
         setLoading(false);
       }
@@ -45,9 +57,6 @@ export function useReservas() {
     []
   );
 
-  /**
-   * Obtener una reserva por ID
-   */
   const get = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
@@ -56,8 +65,10 @@ export function useReservas() {
       setCurrent(res);
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al obtener reserva"));
-      throw e;
+      const raw = getErrorMessage(e, "Error al obtener reserva");
+      const msg = humanizeReservaError(raw);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
@@ -66,6 +77,8 @@ export function useReservas() {
   /**
    * Crear reserva
    * - Calcula automáticamente ?desde & ?hasta desde inicio / fin
+   * - Normaliza el mensaje si el backend devuelve solapamiento
+   * - Lanza Error(msg) para que el form/página pueda mostrarlo
    */
   const create = useCallback(async (payload: ReservaWriteDTO) => {
     setLoading(true);
@@ -73,19 +86,23 @@ export function useReservas() {
     try {
       const desde = isoToDate(payload.inicio);
       const hasta = isoToDate(payload.fin);
-      const res = await reservasService.create(payload, desde, hasta);
+
+      const res = await reservasService.create(payload, { desde, hasta });
+
+      // opcional: podrías refrescar el listado aquí si tu UI lo requiere
+      // await list({ page: "1", desde, hasta });
+
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al crear reserva"));
-      throw e;
+      const raw = getErrorMessage(e, "Error al crear reserva");
+      const msg = humanizeReservaError(raw);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /**
-   * Update completo
-   */
   const update = useCallback(async (id: string, payload: ReservaWriteDTO) => {
     setLoading(true);
     setError(null);
@@ -94,16 +111,15 @@ export function useReservas() {
       setCurrent(res);
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al actualizar reserva"));
-      throw e;
+      const raw = getErrorMessage(e, "Error al actualizar reserva");
+      const msg = humanizeReservaError(raw);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /**
-   * Patch parcial
-   */
   const patch = useCallback(async (id: string, payload: Partial<ReservaWriteDTO>) => {
     setLoading(true);
     setError(null);
@@ -112,24 +128,25 @@ export function useReservas() {
       setCurrent(res);
       return res;
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al editar reserva"));
-      throw e;
+      const raw = getErrorMessage(e, "Error al editar reserva");
+      const msg = humanizeReservaError(raw);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
   }, []);
 
-  /**
-   * Eliminar reserva
-   */
   const remove = useCallback(async (id: string) => {
     setLoading(true);
     setError(null);
     try {
       await reservasService.remove(id);
     } catch (e: unknown) {
-      setError(getErrorMessage(e, "Error al eliminar reserva"));
-      throw e;
+      const raw = getErrorMessage(e, "Error al eliminar reserva");
+      const msg = humanizeReservaError(raw);
+      setError(msg);
+      throw new Error(msg);
     } finally {
       setLoading(false);
     }
