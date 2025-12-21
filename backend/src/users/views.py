@@ -1,7 +1,13 @@
 # src/users/views.py
 from django.contrib.auth import get_user_model
-from rest_framework import viewsets, permissions
+from django.db import transaction
+from django.utils import timezone
+from django.utils.text import slugify
+
+from rest_framework import viewsets, permissions, status
 from rest_framework.generics import RetrieveUpdateAPIView
+from rest_framework.response import Response
+from rest_framework.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema
 
 from .models import Cliente
@@ -21,12 +27,6 @@ class IsAdminOnly(permissions.BasePermission):
 
 
 class IsAdminOrSelf(permissions.BasePermission):
-    """
-    Para UserViewSet:
-    - Admin: puede listar/crear/eliminar
-    - Usuario autenticado: puede ver/editar su propio usuario
-    """
-
     def has_permission(self, request, view):
         if getattr(view, "action", None) in ("list", "create", "destroy"):
             return bool(request.user and request.user.is_staff)
@@ -39,12 +39,6 @@ class IsAdminOrSelf(permissions.BasePermission):
 
 
 class IsAdminOrOwnCliente(permissions.BasePermission):
-    """
-    Para ClienteViewSet:
-    - Admin: puede todo
-    - Usuario: solo puede acceder/modificar su propio Cliente
-    """
-
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_authenticated)
 
@@ -69,17 +63,29 @@ class UserViewSet(viewsets.ModelViewSet):
         return UserListSerializer
 
 
+def _generate_unique_username(nombre: str, apellido: str) -> str:
+    """
+    Genera un username único basado en nombre+apellido.
+    Ej: juan-perez, juan-perez-2, juan-perez-3...
+    """
+    base = slugify(f"{nombre} {apellido}").replace("-", "")
+    base = base or "cliente"
+
+    # límite típico de username (depende de tu User model)
+    base = base[:30]
+
+    candidate = base
+    i = 2
+    while User.objects.filter(username=candidate).exists():
+        suffix = f"{i}"
+        candidate = f"{base[: (30 - len(suffix))]}{suffix}"
+        i += 1
+    return candidate
+
+
 @extend_schema(tags=["Clientes"])
 class ClienteViewSet(viewsets.ModelViewSet):
-    """
-    CRUD para Cliente.
-    - Admin ve todos
-    - Usuario solo ve su propio perfil Cliente
-    """
-
     permission_classes = [IsAdminOrOwnCliente]
-
-    # Fix drf-spectacular: deja claro el tipo de {id} (UUID) para el router
     lookup_field = "id"
     lookup_value_regex = "[0-9a-f-]{36}"
 
@@ -94,9 +100,79 @@ class ClienteViewSet(viewsets.ModelViewSet):
             return ClienteWriteSerializer
         return ClienteReadSerializer
 
-    def perform_create(self, serializer):
-        # si el usuario intenta crear otro perfil, lo forzamos al usuario logueado
-        serializer.save(user=self.request.user)
+    def create(self, request, *args, **kwargs):
+        """
+        Admin:
+          - POST /clientes/ crea automáticamente un User + perfil Cliente
+          - Devuelve además credenciales generadas (username/password)
+
+        Usuario normal:
+          - UPSERT sobre su propio Cliente
+        """
+        write = self.get_serializer(data=request.data)
+        write.is_valid(raise_exception=True)
+        data = write.validated_data
+
+        # -----------------------
+        # ADMIN: crea user + cliente
+        # -----------------------
+        if request.user.is_staff:
+            nombre = (data.get("nombre") or "").strip()
+            apellido = (data.get("apellido") or "").strip()
+
+            if not nombre or not apellido:
+                raise ValidationError({
+                    "nombre": "Requerido para generar credenciales.",
+                    "apellido": "Requerido para generar credenciales.",
+                })
+
+            now = timezone.localtime(timezone.now())
+            dd = f"{now.day:02d}"
+            mm = f"{now.month:02d}"
+
+            username = _generate_unique_username(nombre, apellido)
+            raw_password = f"{nombre}{apellido}{dd}{mm}"
+
+            # Recomendación: crea todo en una transacción
+            with transaction.atomic():
+                user = User.objects.create(
+                    username=username,
+                    email="",          # email vacío permitido
+                    is_active=True,
+                    is_staff=False,
+                )
+                user.set_password(raw_password)
+                user.save()
+
+                # Tu SIGNAL ya crea Cliente automáticamente.
+                # Aun así, por seguridad:
+                cliente, _ = Cliente.objects.get_or_create(user=user)
+
+                for k, v in data.items():
+                    setattr(cliente, k, v)
+                cliente.save()
+
+            payload = ClienteReadSerializer(cliente).data
+            # Incluimos credenciales generadas para que el admin pueda entregarlas.
+            payload["generated_user"] = {
+                "id": user.id,
+                "username": user.username,
+                "password": raw_password,
+            }
+            return Response(payload, status=status.HTTP_201_CREATED)
+
+        # -----------------------
+        # USUARIO NORMAL: upsert propio perfil
+        # -----------------------
+        cliente, created = Cliente.objects.get_or_create(user=request.user)
+        for k, v in data.items():
+            setattr(cliente, k, v)
+        cliente.save()
+
+        return Response(
+            ClienteReadSerializer(cliente).data,
+            status=status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        )
 
 
 @extend_schema(
@@ -109,32 +185,18 @@ class ClienteViewSet(viewsets.ModelViewSet):
     responses=ClienteReadSerializer,
 )
 class MeView(RetrieveUpdateAPIView):
-    """
-    Reemplaza APIView por GenericAPIView para que drf-spectacular pueda inferir el serializer.
-    """
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = ClienteWriteSerializer  # para PUT/PATCH
+    serializer_class = ClienteWriteSerializer
 
     def get_object(self):
         cliente, _ = Cliente.objects.get_or_create(user=self.request.user)
         return cliente
 
     def retrieve(self, request, *args, **kwargs):
-        """
-        GET -> siempre responde con el serializer de lectura
-        """
         instance = self.get_object()
-        return super().finalize_response(
-            request,
-            response=self._build_read_response(instance),
-            *args,
-            **kwargs,
-        )
+        return Response(ClienteReadSerializer(instance).data)
 
     def update(self, request, *args, **kwargs):
-        """
-        PUT/PATCH -> valida con write serializer y responde con read serializer
-        """
         partial = kwargs.pop("partial", False)
         instance = self.get_object()
 
@@ -142,8 +204,4 @@ class MeView(RetrieveUpdateAPIView):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return self._build_read_response(instance)
-
-    def _build_read_response(self, instance):
-        from rest_framework.response import Response
         return Response(ClienteReadSerializer(instance).data)
