@@ -1,6 +1,8 @@
+from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
 from common_vap.enums import ReservaEstado
+from users.models import Cliente
 from .models import (
     TipoActividad,
     Espacio,
@@ -11,6 +13,8 @@ from .models import (
     Promocion,
     Reserva,
 )
+
+User = get_user_model()
 
 
 class TipoActividadSerializer(serializers.ModelSerializer):
@@ -240,14 +244,29 @@ class ReservaSerializer(serializers.ModelSerializer):
     cliente_nombre = serializers.SerializerMethodField()
     cliente_apellido = serializers.SerializerMethodField()
 
+    # IMPORTANTE: hacer usuario opcional para que no dé 400 si no viene en payload
+    usuario = serializers.PrimaryKeyRelatedField(
+        queryset=User.objects.all(),
+        required=False,
+    )
+
+    # Aceptar cliente desde el frontend (lo que hoy estás enviando: clienteId)
+    # Si tu Cliente.id es UUID, DRF lo resuelve igual con PrimaryKeyRelatedField.
+    cliente = serializers.PrimaryKeyRelatedField(
+        queryset=Cliente.objects.select_related("user").all(),
+        required=False,
+        allow_null=True,
+    )
+
     class Meta:
         model = Reserva
         fields = (
             "id",
             "espacio",
             "espacio_nombre",
-            "usuario",
+            "usuario",            # ahora opcional
             "usuario_username",
+            "cliente",            # ahora aceptado en escritura
             "cliente_nombre",
             "cliente_apellido",
             "actividad",
@@ -264,24 +283,31 @@ class ReservaSerializer(serializers.ModelSerializer):
         request = self.context.get("request")
         user = getattr(request, "user", None)
 
+        if not user or not user.is_authenticated:
+            raise serializers.ValidationError("Usuario no autenticado.")
+
         inicio = attrs.get("inicio") or getattr(self.instance, "inicio", None)
         fin = attrs.get("fin") or getattr(self.instance, "fin", None)
-
         if inicio and fin and fin <= inicio:
             raise serializers.ValidationError(
                 {"fin": "La fecha/hora fin debe ser posterior a inicio."}
             )
 
         incoming_usuario = attrs.get("usuario", None)
+        incoming_cliente = attrs.get("cliente", None)
 
-        if not user or not user.is_authenticated:
-            raise serializers.ValidationError("Usuario no autenticado.")
-
-        # Cliente no puede crear/editar para otro
+        # Usuario normal: no puede crear/editar para otro usuario
         if not user.is_staff:
+            # si mandan usuario explícito, debe ser él mismo
             if incoming_usuario and incoming_usuario != user:
                 raise serializers.ValidationError(
                     {"usuario": "No puedes crear/editar reservas para otro usuario."}
+                )
+
+            # si mandan cliente explícito, debe pertenecerle
+            if incoming_cliente and incoming_cliente.user_id != user.id:
+                raise serializers.ValidationError(
+                    {"cliente": "No puedes crear/editar reservas para otro cliente."}
                 )
 
         return attrs
@@ -293,14 +319,22 @@ class ReservaSerializer(serializers.ModelSerializer):
         if not user or not user.is_authenticated:
             raise serializers.ValidationError("Usuario no autenticado.")
 
+        cliente_obj = validated_data.get("cliente")
+
+        # Si viene cliente, derivamos usuario desde cliente.user (esto arregla tu front)
+        if cliente_obj is not None:
+            validated_data["usuario"] = cliente_obj.user
+
         if user.is_staff:
-            # admin puede mandar "usuario" o si no, se toma a sí mismo
+            # admin: si no mandó usuario ni cliente, se toma a sí mismo
             validated_data["usuario"] = validated_data.get("usuario") or user
             validated_data["estado_reserva"] = ReservaEstado.CONFIRMADA
         else:
-            # cliente siempre es él mismo y queda PENDIENTE
+            # no admin: siempre es él mismo y queda PENDIENTE
             validated_data["usuario"] = user
             validated_data["estado_reserva"] = ReservaEstado.PENDIENTE
+            # si mandó cliente, igual lo forzamos al perfil del user
+            validated_data["cliente"] = getattr(user, "cliente", None)
 
         return super().create(validated_data)
 
@@ -311,15 +345,26 @@ class ReservaSerializer(serializers.ModelSerializer):
         if not user or not user.is_authenticated:
             raise serializers.ValidationError("Usuario no autenticado.")
 
-        # Cliente no puede cambiar estado ni usuario
+        # Usuario normal: no puede cambiar estado ni usuario ni cliente
         if not user.is_staff:
             validated_data.pop("estado_reserva", None)
             validated_data.pop("usuario", None)
+            validated_data.pop("cliente", None)
+
+        # Si admin manda cliente en update, sincroniza usuario = cliente.user
+        cliente_obj = validated_data.get("cliente")
+        if user.is_staff and cliente_obj is not None:
+            validated_data["usuario"] = cliente_obj.user
 
         return super().update(instance, validated_data)
 
     def get_cliente_nombre(self, obj: Reserva) -> str:
+        # Prioriza obj.cliente si está, sino deriva del perfil del usuario
+        if obj.cliente_id:
+            return getattr(obj.cliente, "nombre", "")
         return getattr(getattr(obj.usuario, "cliente", None), "nombre", "")
 
     def get_cliente_apellido(self, obj: Reserva) -> str:
+        if obj.cliente_id:
+            return getattr(obj.cliente, "apellido", "")
         return getattr(getattr(obj.usuario, "cliente", None), "apellido", "")
