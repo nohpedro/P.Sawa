@@ -21,6 +21,28 @@ import QuickCreateClienteModal from "../clientes/QuickCreateClienteModal";
 import type { ClienteWriteDTO } from "../../models/cliente";
 
 import { extractErrorMessage, humanizeReservaError } from "../../utils/apiError";
+
+// reloj inicio/fin
+import TimeRangePicker from "./TimeRangePicker";
+import type { HHMM } from "./ClockTimePicker";
+
+// helpers internos para comparar horas sin Date
+function hhmmToMinutes(v: string): number {
+  const [h, m] = v.split(":").map((x) => Number(x));
+  return (h * 60) + m;
+}
+
+function minutesToHHMM(total: number): HHMM {
+  const h = Math.floor(total / 60);
+  const m = total % 60;
+  const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+  return `${pad2(h)}:${pad2(m)}` as HHMM;
+}
+
+function addMinutes(hhmm: HHMM, add: number): HHMM {
+  return minutesToHHMM(hhmmToMinutes(hhmm) + add);
+}
+
 export default function ReservaForm({
   day,
   onSubmit,
@@ -38,8 +60,11 @@ export default function ReservaForm({
   const [clienteId, setClienteId] = useState("");
   const [espacioId, setEspacioId] = useState("");
   const [actividadId, setActividadId] = useState("");
-  const [inicioHHMM, setInicioHHMM] = useState("19:00");
-  const [finHHMM, setFinHHMM] = useState("20:00");
+
+  // reloj: inicio y fin
+  const [inicioHHMM, setInicioHHMM] = useState<HHMM>("19:00");
+  const [finHHMM, setFinHHMM] = useState<HHMM>("20:00");
+
   const [notas, setNotas] = useState("");
 
   const [uiError, setUiError] = useState<string | null>(null);
@@ -86,6 +111,14 @@ export default function ReservaForm({
     const rels = ea.data?.results ?? [];
     return rels.find((r) => r.tipo === actividadId) ?? null;
   }, [ea.data, actividadId]);
+
+  // Si la actividad tiene una duración "base", al seleccionar actividad ajusta fin = inicio + base
+  useEffect(() => {
+    if (!relEA?.duracion_minutos) return;
+    const nextFin = addMinutes(inicioHHMM, relEA.duracion_minutos);
+    setFinHHMM(nextFin);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relEA?.duracion_minutos]);
 
   const inicioISO = useMemo(() => combineDateAndTimeToISO(day, inicioHHMM), [day, inicioHHMM]);
   const finISO = useMemo(() => combineDateAndTimeToISO(day, finHHMM), [day, finHHMM]);
@@ -167,6 +200,24 @@ export default function ReservaForm({
 
   const clientesList = clientes.data?.results ?? [];
 
+  // Handlers con auto-corrección simple para que fin nunca quede antes/igual que inicio
+  const onInicioChange = (v: HHMM) => {
+    setInicioHHMM(v);
+
+    const i = hhmmToMinutes(v);
+    const f = hhmmToMinutes(finHHMM);
+
+    if (f <= i) {
+      // regla: si fin queda inválido, empuja fin a +60 min (o base si existe)
+      const step = relEA?.duracion_minutos ?? 60;
+      setFinHHMM(minutesToHHMM(i + step));
+    }
+  };
+
+  const onFinChange = (v: HHMM) => {
+    setFinHHMM(v);
+  };
+
   return (
     <div style={{ display: "grid", gap: 16 }}>
       <Card title="Nueva reserva" subtitle={`Día seleccionado: ${day}`}>
@@ -204,10 +255,14 @@ export default function ReservaForm({
             </div>
           )}
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Input label="Hora inicio" type="time" value={inicioHHMM} onChange={(e) => setInicioHHMM(e.target.value)} />
-            <Input label="Hora fin" type="time" value={finHHMM} onChange={(e) => setFinHHMM(e.target.value)} />
-          </div>
+          <TimeRangePicker
+            inicioHHMM={inicioHHMM}
+            onInicioChange={onInicioChange}
+            finHHMM={finHHMM}
+            onFinChange={onFinChange}
+            minuteStep={5}
+            disabled={!espacioId || !actividadId}
+          />
 
           <Input label="Notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional" />
 
