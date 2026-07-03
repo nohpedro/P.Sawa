@@ -11,6 +11,64 @@ import { useAuth } from "../../hooks/useAuth";
 import { PATHS } from "../../router/paths";
 import { loginSchema, type LoginFormValues } from "./login.schema";
 
+type AuthErrorPayload = {
+  code?: string;
+  detail?: string;
+  message?: string;
+};
+
+function getMessageFromPayload(payload?: AuthErrorPayload): string | null {
+  if (!payload) return null;
+
+  if (payload.code === "USER_NOT_FOUND") return "Usuario no encontrado.";
+  if (payload.code === "PASSWORD_INCORRECT") return "Contraseña incorrecta.";
+
+  return payload.detail || payload.message || null;
+}
+
+function getLoginErrorMessage(error: unknown): string {
+  const fallback = "Usuario o contraseña incorrectos.";
+
+  const directPayloadMessage = getMessageFromPayload(error as AuthErrorPayload);
+  if (directPayloadMessage) return directPayloadMessage;
+
+  if (
+    typeof error === "object" &&
+    error !== null &&
+    "response" in error
+  ) {
+    const response = (error as { response?: { data?: AuthErrorPayload } }).response;
+    const responseMessage = getMessageFromPayload(response?.data);
+    if (responseMessage) return responseMessage;
+  }
+
+  if (typeof error === "string") {
+    try {
+      const payload = JSON.parse(error) as AuthErrorPayload;
+      return getMessageFromPayload(payload) || fallback;
+    } catch {
+      return error || fallback;
+    }
+  }
+
+  if (error instanceof Error) {
+    const jsonStart = error.message.indexOf("{");
+
+    if (jsonStart !== -1) {
+      try {
+        const payload = JSON.parse(error.message.slice(jsonStart)) as AuthErrorPayload;
+        return getMessageFromPayload(payload) || fallback;
+      } catch {
+        return fallback;
+      }
+    }
+
+    return error.message || fallback;
+  }
+
+  return fallback;
+}
+
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -21,10 +79,19 @@ export default function LoginPage() {
     return state?.from ?? PATHS.availability;
   }, [location.state]);
 
-  const [form, setForm] = useState<LoginFormValues>({ username: "", password: "" });
+  const [form, setForm] = useState<LoginFormValues>({
+    username: "",
+    password: "",
+  });
+
   const [errors, setErrors] = useState<Partial<Record<keyof LoginFormValues, string>>>({});
   const [authError, setAuthError] = useState("");
-  const [toast, setToast] = useState<{ open: boolean; message: string; type: "info" | "success" | "error" }>({
+
+  const [toast, setToast] = useState<{
+    open: boolean;
+    message: string;
+    type: "info" | "success" | "error";
+  }>({
     open: false,
     message: "",
     type: "info",
@@ -46,16 +113,19 @@ export default function LoginPage() {
 
   const validate = (): boolean => {
     const result = loginSchema.safeParse(form);
+
     if (result.success) {
       setErrors({});
       return true;
     }
 
     const fieldErrors: Partial<Record<keyof LoginFormValues, string>> = {};
+
     for (const issue of result.error.issues) {
       const field = issue.path[0] as keyof LoginFormValues | undefined;
       if (field) fieldErrors[field] = issue.message;
     }
+
     setErrors(fieldErrors);
     return false;
   };
@@ -65,24 +135,40 @@ export default function LoginPage() {
     setAuthError("");
 
     if (!validate()) {
-      setToast({ open: true, message: "Revisa los campos marcados.", type: "error" });
+      const message = "Revisa los campos marcados.";
+      setAuthError(message);
+      setToast({ open: true, message, type: "error" });
       return;
     }
 
     try {
-      await login({ username: form.username, password: form.password });
-      setToast({ open: true, message: "Sesion iniciada.", type: "success" });
+      await login({
+        username: form.username,
+        password: form.password,
+      });
+
+      setToast({
+        open: true,
+        message: "Sesión iniciada.",
+        type: "success",
+      });
+
       navigate(redirectTo, { replace: true });
-    } catch {
-      const message = "Usuario o contrasena incorrectos.";
+    } catch (error) {
+      const message = getLoginErrorMessage(error);
+
       setAuthError(message);
-      setToast({ open: true, message, type: "error" });
+      setToast({
+        open: true,
+        message,
+        type: "error",
+      });
     }
   };
 
   return (
     <>
-      <Card title="INICIO DE SESION" subtitle="Accede a Sawa" style={{ width: 420 }}>
+      <Card title="INICIO DE SESIÓN" subtitle="Accede a Sawa" style={{ width: 420 }}>
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <Input
             label="Usuario"
@@ -94,7 +180,7 @@ export default function LoginPage() {
           />
 
           <Input
-            label="Contrasena"
+            label="Contraseña"
             placeholder="*********"
             type="password"
             value={form.password}
@@ -103,22 +189,25 @@ export default function LoginPage() {
             autoComplete="current-password"
           />
 
-          {authError && (
+          {authError ? (
             <div
               role="alert"
+              aria-live="assertive"
               style={{
-                border: "1px solid #ff5252",
+                display: "block",
+                border: "1px solid #dc2626",
                 borderRadius: 8,
-                background: "rgba(255,82,82,0.10)",
-                color: "#fecaca",
+                background: "#fee2e2",
+                color: "#991b1b",
                 padding: "10px 12px",
-                fontSize: 13,
-                fontWeight: 800,
+                fontSize: 14,
+                fontWeight: 700,
+                lineHeight: 1.4,
               }}
             >
               {authError}
             </div>
-          )}
+          ) : null}
 
           <Button type="submit" fullWidth disabled={loading}>
             {loading ? <Loader label="Ingresando..." /> : "Ingresar"}
