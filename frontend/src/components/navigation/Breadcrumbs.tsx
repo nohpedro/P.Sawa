@@ -8,9 +8,17 @@ function labelFor(path: string) {
     case PATHS.adminEspacios:
       return "Espacios";
     case PATHS.adminActividades:
-      return "Tipos de Actividad";
+      return "Tipos de actividad";
     case PATHS.adminEspacioActividad:
-      return "Espacio → Actividad";
+      return "Espacio / Actividad";
+    case PATHS.customers:
+      return "Clientes";
+    case PATHS.usersRoles:
+      return "Usuarios y roles";
+    case PATHS.reservations:
+      return "Reservas";
+    case PATHS.reservationHistory:
+      return "Historial";
     default:
       return path;
   }
@@ -21,25 +29,19 @@ export default function Breadcrumbs() {
   const navigate = useNavigate();
 
   const parts = location.pathname.split("/").filter(Boolean);
-  const crumbs = parts.map((_, idx) => "/" + parts.slice(0, idx + 1).join("/"));
+  const crumbs = parts.map((_, idx) => `/${parts.slice(0, idx + 1).join("/")}`);
 
   return (
     <nav style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, opacity: 0.85 }}>
-      <span
-        style={{ cursor: "pointer", textDecoration: "underline" }}
-        onClick={() => navigate(PATHS.availability)}
-      >
+      <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => navigate(PATHS.availability)}>
         Home
       </span>
 
-      {crumbs.map((c) => (
-        <span key={c} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      {crumbs.map((crumb) => (
+        <span key={crumb} style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ opacity: 0.6 }}>/</span>
-          <span
-            style={{ cursor: "pointer", textDecoration: "underline" }}
-            onClick={() => navigate(c)}
-          >
-            {labelFor(c)}
+          <span style={{ cursor: "pointer", textDecoration: "underline" }} onClick={() => navigate(crumb)}>
+            {labelFor(crumb)}
           </span>
         </span>
       ))}

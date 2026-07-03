@@ -9,7 +9,9 @@ export const PATHS = {
   adminEspacioActividad: "/admin/espacio-actividad",
   customers: "/admin/clientes",
   customerDetail: "/admin/clientes/:id",
+  usersRoles: "/admin/usuarios-roles",
   reservations: "/reservas",
+  reservationHistory: "/historial-reservas",
 
   notFound: "*",
 } as const;

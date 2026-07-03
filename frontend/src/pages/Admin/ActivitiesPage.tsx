@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties } from "react";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
@@ -9,14 +9,27 @@ import type { TipoActividad } from "../../models/actividad";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
 
+const panelStyle: CSSProperties = {
+  border: "1px solid var(--color-border)",
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.02)",
+  padding: 14,
+};
+
+const badgeStyle: CSSProperties = {
+  border: "1px solid var(--color-border)",
+  borderRadius: 999,
+  padding: "6px 10px",
+  fontSize: 12,
+  fontWeight: 900,
+};
+
 export default function ActivitiesPage() {
   const { data, loading, error, list, create, patch, remove } = useTiposActividad();
 
   const [form, setForm] = useState({ nombre: "", descripcion: "", activo: true });
-
   const [selected, setSelected] = useState<TipoActividad | null>(null);
   const [editDraft, setEditDraft] = useState<TipoActividad | null>(null);
-
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState<ToastState>({ open: false, message: "", type: "info" });
 
@@ -24,19 +37,8 @@ export default function ActivitiesPage() {
     list({ page: "1" }).catch(() => {});
   }, [list]);
 
-  const refresh = async () => {
-    const res = await list({ page: "1" });
-    const id = editDraft?.id ?? selected?.id;
-    if (id) {
-      const found = res.results?.find((x: TipoActividad) => x.id === id);
-      if (found) {
-        setSelected(found);
-        setEditDraft(found);
-      }
-    }
-  };
-
-  const all = data?.results ?? [];
+  const all = useMemo(() => data?.results ?? [], [data?.results]);
+  const activeCount = useMemo(() => all.filter((a) => a.activo).length, [all]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -44,31 +46,37 @@ export default function ActivitiesPage() {
     return all.filter((a) => `${a.nombre} ${a.descripcion ?? ""}`.toLowerCase().includes(q));
   }, [all, query]);
 
+  const refresh = async () => {
+    const res = await list({ page: "1" });
+    const currentId = editDraft?.id ?? selected?.id;
+    if (!currentId) return;
+
+    const found = res.results?.find((x: TipoActividad) => x.id === currentId) ?? null;
+    setSelected(found);
+    setEditDraft(found);
+  };
+
   const onCreate = async () => {
-    if (!form.nombre.trim()) return;
+    const nombre = form.nombre.trim();
+    if (!nombre) return;
 
-    await create(form);
+    await create({ ...form, nombre, descripcion: form.descripcion.trim() });
     setForm({ nombre: "", descripcion: "", activo: true });
-
     setToast({ open: true, message: "Actividad creada.", type: "success" });
     await refresh();
   };
 
-  const onPick = (a: TipoActividad) => {
-    setSelected(a);
-    setEditDraft(a);
-  };
-
-  const onCancelEdit = () => {
-    setEditDraft(selected);
+  const onPick = (activity: TipoActividad) => {
+    setSelected(activity);
+    setEditDraft({ ...activity });
   };
 
   const onSave = async () => {
-    if (!editDraft) return;
+    if (!editDraft?.nombre.trim()) return;
 
     await patch(editDraft.id, {
-      nombre: editDraft.nombre,
-      descripcion: editDraft.descripcion,
+      nombre: editDraft.nombre.trim(),
+      descripcion: editDraft.descripcion?.trim() ?? "",
       activo: editDraft.activo,
     });
 
@@ -78,12 +86,10 @@ export default function ActivitiesPage() {
 
   const onDelete = async (id: string) => {
     await remove(id);
-
     if (selected?.id === id) {
       setSelected(null);
       setEditDraft(null);
     }
-
     setToast({ open: true, message: "Actividad eliminada.", type: "success" });
     await refresh();
   };
@@ -91,232 +97,144 @@ export default function ActivitiesPage() {
   const onQueryChange = (evt: ChangeEvent<HTMLInputElement>) => setQuery(evt.target.value);
 
   return (
-    <div style={{ display: "grid", gap: 20 }}>
-      {/* Cabecera */}
+    <div style={{ display: "grid", gap: 18 }}>
       <Card
-        title="Tipos de Actividad"
-        subtitle="Crea y administra actividades como Fútbol, Vóley, Básquet, etc."
+        title="Actividades"
+        subtitle="Administra los deportes o servicios que luego se asignan a cada espacio."
+        rightSlot={
+          <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
+            Refrescar
+          </Button>
+        }
       >
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontSize: 13, opacity: 0.85 }}>
-            Total: <b>{all.length}</b> · Mostrando: <b>{filtered.length}</b>
-          </div>
-
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-            <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
-              Refrescar
-            </Button>
-          </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <span style={badgeStyle}>Total: {all.length}</span>
+          <span style={badgeStyle}>Activas: {activeCount}</span>
+          <span style={badgeStyle}>Mostrando: {filtered.length}</span>
         </div>
       </Card>
 
-      {/* Layout más grande */}
-      <div style={{ display: "grid", gap: 20, gridTemplateColumns: "560px 1fr" }}>
-        {/* Crear */}
-        <Card title="Crear nueva actividad" subtitle="Nombre, descripción y estado (activo/inactivo).">
-          <div style={{ display: "grid", gap: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 400px) minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
+        <Card title="Nueva actividad" subtitle="Crea una actividad con nombre claro y descripcion corta.">
+          <div style={{ display: "grid", gap: 14 }}>
             <Input
               label="Nombre"
-              placeholder="Ej: Fútbol"
+              placeholder="Ej: Futbol, Voley, Basquet"
               value={form.nombre}
               onChange={(evt) => setForm((s) => ({ ...s, nombre: evt.target.value }))}
             />
 
             <Input
-              label="Descripción"
-              placeholder="Opcional (ej: reglas, modalidad...)"
+              label="Descripcion"
+              placeholder="Opcional"
               value={form.descripcion}
               onChange={(evt) => setForm((s) => ({ ...s, descripcion: evt.target.value }))}
             />
 
-            <label
-              style={{
-                display: "flex",
-                gap: 12,
-                alignItems: "center",
-                fontSize: 13,
-                opacity: 0.92,
-                userSelect: "none",
-                padding: "10px 12px",
-                border: "1px solid var(--color-border)",
-                borderRadius: 12,
-                background: "rgba(255,255,255,0.02)",
-              }}
-            >
+            <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
               <input
                 type="checkbox"
                 checked={form.activo}
                 onChange={(evt) => setForm((s) => ({ ...s, activo: evt.target.checked }))}
               />
-              Activo (visible para asignar a espacios)
+              <span style={{ fontSize: 13, fontWeight: 800 }}>Disponible para asignar a espacios</span>
             </label>
 
             <Button onClick={() => void onCreate()} disabled={loading || !form.nombre.trim()} fullWidth>
               {loading ? <Loader label="Guardando..." /> : "Crear actividad"}
             </Button>
-
-            {error && <div style={{ color: "#ff5252", fontSize: 13 }}>{error}</div>}
           </div>
         </Card>
 
-        {/* Listado + edición */}
-        <Card title="Listado y edición" subtitle="Selecciona una actividad para editarla en el panel derecho.">
+        <Card title="Listado" subtitle="Busca, selecciona y edita una actividad sin cambiar de pantalla.">
           <div style={{ display: "grid", gap: 14 }}>
-            <Input
-              label="Buscar"
-              placeholder="Ej: vóley, basket, entrenamiento..."
-              value={query}
-              onChange={onQueryChange}
-            />
+            <Input label="Buscar" placeholder="Nombre o descripcion..." value={query} onChange={onQueryChange} />
 
-            {loading && <Loader label="Cargando..." />}
+            {loading && <Loader label="Cargando actividades..." />}
 
-            {/* Más ancho + más alto */}
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 520px", gap: 18 }}>
-              {/* Lista */}
-              <div
-                style={{
-                  maxHeight: 680,
-                  overflow: "auto",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 14,
-                  padding: 14,
-                  background: "rgba(255,255,255,0.02)",
-                }}
-              >
-                <div style={{ display: "grid", gap: 12 }}>
-                  {filtered.map((a) => {
-                    const active = selected?.id === a.id;
-
-                    return (
-                      <div
-                        key={a.id}
-                        onClick={() => onPick(a)}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "1fr auto auto",
-                          gap: 12,
-                          alignItems: "center",
-                          border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
-                          borderRadius: 14,
-                          padding: 16,
-                          minHeight: 92, // ✅ recuadros más largos
-                          background: active ? "rgba(255,210,74,0.08)" : "transparent",
-                          cursor: "pointer",
-                        }}
-                      >
-                        <div>
-                          <div style={{ fontWeight: 950, fontSize: 15 }}>
-                            {a.nombre}{" "}
-                            {!a.activo && (
-                              <span style={{ fontSize: 12, opacity: 0.75 }}>· (Inactivo)</span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 13, opacity: 0.86, marginTop: 6, lineHeight: 1.35 }}>
-                            {a.descripcion || "—"}
-                          </div>
-                        </div>
-
-                        <Button
-                          variant="outline"
-                          onClick={(evt) => {
-                            evt.stopPropagation();
-                            onPick(a);
-                          }}
-                        >
-                          Editar
-                        </Button>
-
-                        <Button
-                          variant="danger"
-                          onClick={(evt) => {
-                            evt.stopPropagation();
-                            void onDelete(a.id);
-                          }}
-                        >
-                          Eliminar
-                        </Button>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(280px, 420px)", gap: 14, alignItems: "start" }}>
+              <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 610, overflow: "auto" }}>
+                {filtered.map((activity) => {
+                  const active = selected?.id === activity.id;
+                  return (
+                    <button
+                      key={activity.id}
+                      type="button"
+                      onClick={() => onPick(activity)}
+                      style={{
+                        textAlign: "left",
+                        border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
+                        borderRadius: 8,
+                        background: active ? "rgba(255,210,74,0.07)" : "#0f1420",
+                        color: "var(--color-text)",
+                        padding: 14,
+                        cursor: "pointer",
+                      }}
+                    >
+                      <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                        <strong>{activity.nombre}</strong>
+                        <span style={{ color: activity.activo ? "#8ee59f" : "#ffb4b4", fontSize: 12, fontWeight: 900 }}>
+                          {activity.activo ? "Activa" : "Inactiva"}
+                        </span>
                       </div>
-                    );
-                  })}
+                      <div style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: 13, lineHeight: 1.35 }}>
+                        {activity.descripcion || "Sin descripcion"}
+                      </div>
+                    </button>
+                  );
+                })}
 
-                  {!loading && filtered.length === 0 && (
-                    <div style={{ opacity: 0.85, fontSize: 13 }}>No se encontraron actividades.</div>
-                  )}
-                </div>
+                {!loading && filtered.length === 0 && (
+                  <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No se encontraron actividades.</div>
+                )}
               </div>
 
-              {/* Panel de edición */}
-              <div
-                style={{
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 14,
-                  padding: 16,
-                  background: "rgba(255,255,255,0.02)",
-                  height: "fit-content",
-                }}
-              >
+              <div style={panelStyle}>
                 {!editDraft ? (
-                  <div style={{ opacity: 0.85, fontSize: 13 }}>
-                    Selecciona una actividad para editar.
+                  <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
+                    Selecciona una actividad para editarla.
                   </div>
                 ) : (
-                  <>
-                    <div style={{ fontWeight: 950, fontSize: 15, marginBottom: 12 }}>
-                      Editar: {editDraft.nombre}
+                  <div style={{ display: "grid", gap: 14 }}>
+                    <div>
+                      <div style={{ fontSize: 12, color: "var(--color-text-muted)", fontWeight: 800 }}>Editando</div>
+                      <div style={{ fontSize: 18, fontWeight: 950 }}>{editDraft.nombre}</div>
                     </div>
 
-                    <div style={{ display: "grid", gap: 16 }}>
-                      <Input
-                        label="Nombre"
-                        value={editDraft.nombre}
-                        onChange={(evt) =>
-                          setEditDraft((s) => (s ? { ...s, nombre: evt.target.value } : s))
-                        }
+                    <Input
+                      label="Nombre"
+                      value={editDraft.nombre}
+                      onChange={(evt) => setEditDraft((s) => (s ? { ...s, nombre: evt.target.value } : s))}
+                    />
+
+                    <Input
+                      label="Descripcion"
+                      value={editDraft.descripcion ?? ""}
+                      onChange={(evt) => setEditDraft((s) => (s ? { ...s, descripcion: evt.target.value } : s))}
+                    />
+
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={!!editDraft.activo}
+                        onChange={(evt) => setEditDraft((s) => (s ? { ...s, activo: evt.target.checked } : s))}
                       />
+                      <span style={{ fontSize: 13, fontWeight: 800 }}>Actividad activa</span>
+                    </label>
 
-                      <Input
-                        label="Descripción"
-                        value={editDraft.descripcion}
-                        onChange={(evt) =>
-                          setEditDraft((s) => (s ? { ...s, descripcion: evt.target.value } : s))
-                        }
-                      />
-
-                      <label
-                        style={{
-                          display: "flex",
-                          gap: 12,
-                          alignItems: "center",
-                          fontSize: 13,
-                          opacity: 0.92,
-                          userSelect: "none",
-                          padding: "10px 12px",
-                          border: "1px solid var(--color-border)",
-                          borderRadius: 12,
-                          background: "rgba(255,255,255,0.02)",
-                        }}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={!!editDraft.activo}
-                          onChange={(evt) =>
-                            setEditDraft((s) => (s ? { ...s, activo: evt.target.checked } : s))
-                          }
-                        />
-                        Activo
-                      </label>
-
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <Button onClick={() => void onSave()} disabled={loading} fullWidth>
-                          {loading ? <Loader label="Actualizando..." /> : "Guardar"}
-                        </Button>
-                        <Button variant="outline" onClick={onCancelEdit} disabled={loading}>
-                          Cancelar
-                        </Button>
-                      </div>
+                    <div style={{ display: "flex", gap: 10 }}>
+                      <Button onClick={() => void onSave()} disabled={loading || !editDraft.nombre.trim()} fullWidth>
+                        {loading ? <Loader label="Guardando..." /> : "Guardar"}
+                      </Button>
+                      <Button variant="outline" onClick={() => setEditDraft(selected ? { ...selected } : null)} disabled={loading}>
+                        Deshacer
+                      </Button>
                     </div>
-                  </>
+
+                    <Button variant="danger" onClick={() => void onDelete(editDraft.id)} disabled={loading}>
+                      Eliminar actividad
+                    </Button>
+                  </div>
                 )}
               </div>
             </div>

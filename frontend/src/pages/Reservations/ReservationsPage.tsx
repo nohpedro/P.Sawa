@@ -123,7 +123,7 @@ export default function ReservationsPage() {
                 <div className="fids-cell">
                   {`${r.cliente_nombre ?? ""} ${r.cliente_apellido ?? ""}`.trim() || r.usuario_username || "—"}
                 </div>
-                <div className="fids-cell">{r.actividad}</div>
+                <div className="fids-cell">{r.actividad_nombre ?? r.actividad}</div>
                 <div className="fids-cell">{formatHHMM(r.inicio)}</div>
                 <div className="fids-cell">{formatHHMM(r.fin)}</div>
                 <div className="fids-cell">{r.estado_reserva}</div>
@@ -144,7 +144,7 @@ export default function ReservationsPage() {
       <FullScreenModal
         open={modalOpen}
         title="Crear reserva"
-        subtitle="Selecciona espacio, actividad y rango horario. Se valida actividad y se calcula costo en vivo."
+        subtitle="Selecciona cliente, espacio, actividad y horario."
         onClose={() => setModalOpen(false)}
       >
         <ReservaForm day={selectedDay} loading={reservas.loading} onSubmit={onSubmit} />

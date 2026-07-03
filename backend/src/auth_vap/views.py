@@ -7,6 +7,7 @@ from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiExample
 
 from .serializers import LoginInputSerializer, TokenAccessSerializer, LogoutInputSerializer
 from .models import BlacklistedAccessToken
+from users.models import MODULE_CHOICES, UserAccessProfile
 
 @extend_schema(
     tags=["Auth"],
@@ -31,9 +32,20 @@ class LoginView(APIView):
             return Response({"detail": "Credenciales inválidas"}, status=status.HTTP_401_UNAUTHORIZED)
 
         access = AccessToken.for_user(user)
+        profile, _ = UserAccessProfile.objects.get_or_create(user=user)
+        modules = [key for key, _ in MODULE_CHOICES] if user.is_superuser else profile.normalized_modules()
+        role = "superuser" if user.is_superuser else profile.role
         data = {
             "access": str(access),
-            "user": {"id": user.id, "username": user.username, "email": user.email or ""},
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email or "",
+                "is_staff": user.is_staff,
+                "is_superuser": user.is_superuser,
+                "role": role,
+                "modules": modules,
+            },
         }
         return Response(data, status=status.HTTP_200_OK)
 

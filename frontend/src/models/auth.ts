@@ -17,6 +17,10 @@ export interface AuthUser {
   id: number;
   username: string;
   email: string;
+  is_staff: boolean;
+  is_superuser: boolean;
+  role: string;
+  modules: string[];
 }
 
 /**

@@ -16,6 +16,10 @@ class UserPublicSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     username = serializers.CharField()
     email = serializers.EmailField(allow_blank=True, required=False)
+    is_staff = serializers.BooleanField()
+    is_superuser = serializers.BooleanField()
+    role = serializers.CharField()
+    modules = serializers.ListField(child=serializers.CharField())
 
 class TokenAccessSerializer(serializers.Serializer):
     access = serializers.CharField()

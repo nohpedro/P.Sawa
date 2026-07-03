@@ -7,19 +7,23 @@ import type { SidebarSection } from "../components/navigation/sidebar.types";
 
 import Breadcrumbs from "../components/navigation/Breadcrumbs";
 import Button from "../components/ui/Button";
+import { hasModule, type ModuleKey } from "../models/modules";
 
 import {
-  FiGrid,
-  FiMap,
-  FiLayers,
-  FiCalendar,
-  FiUsers,
   FiBox,
+  FiCalendar,
+  FiClock,
+  FiGrid,
+  FiLayers,
+  FiMap,
+  FiShield,
+  FiUsers,
 } from "react-icons/fi";
 
 export default function AuthLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const can = (module: ModuleKey) => hasModule(user, module);
 
   const onLogout = async () => {
     await logout();
@@ -28,56 +32,36 @@ export default function AuthLayout() {
 
   const sidebarSections: SidebarSection[] = [
     {
-      title: "Operación",
+      title: "Operacion",
       items: [
-        {
-          label: "Disponibilidad",
-          to: PATHS.availability,
-          icon: FiGrid,
-        },
+        ...(can("availability") ? [{ label: "Disponibilidad", to: PATHS.availability, icon: FiGrid }] : []),
       ],
     },
     {
-      title: "Administración",
+      title: "Administracion",
       items: [
-        {
-          label: "Espacios",
-          to: PATHS.adminEspacios,
-          icon: FiMap,
-        },
-        {
-          label: "Actividades",
-          to: PATHS.adminActividades,
-          icon: FiLayers,
-        },
-        {
-          label: "Designacion de Actividades",
-          to: PATHS.adminEspacioActividad,
-          icon: FiCalendar,
-        },
+        ...(can("spaces") ? [{ label: "Espacios", to: PATHS.adminEspacios, icon: FiMap }] : []),
+        ...(can("activities") ? [{ label: "Actividades", to: PATHS.adminActividades, icon: FiLayers }] : []),
+        ...(can("space_activities")
+          ? [{ label: "Designacion de actividades", to: PATHS.adminEspacioActividad, icon: FiCalendar }]
+          : []),
+        ...(can("users") ? [{ label: "Usuarios y roles", to: PATHS.usersRoles, icon: FiShield }] : []),
       ],
     },
-          {
+    {
       title: "Clientes",
       items: [
-        {
-          label: "Clientes",
-          to: PATHS.customers,
-          icon: FiUsers,
-        },
+        ...(can("customers") ? [{ label: "Clientes", to: PATHS.customers, icon: FiUsers }] : []),
       ],
     },
     {
       title: "Reservacion",
       items: [
-        {
-          label: "Reserva",
-          to: PATHS.reservations,
-          icon: FiBox,
-        },
+        ...(can("reservations") ? [{ label: "Reserva", to: PATHS.reservations, icon: FiBox }] : []),
+        ...(can("history") ? [{ label: "Historial", to: PATHS.reservationHistory, icon: FiClock }] : []),
       ],
     },
-  ];
+  ].filter((section) => section.items.length > 0);
 
   return (
     <div
@@ -88,7 +72,6 @@ export default function AuthLayout() {
         background: "var(--color-bg)",
       }}
     >
-      {/* HEADER */}
       <header
         style={{
           display: "flex",
@@ -100,13 +83,11 @@ export default function AuthLayout() {
           color: "var(--color-text)",
         }}
       >
-        <div style={{ fontWeight: 900, letterSpacing: 1 }}>
-          PROY VOLLEY
-        </div>
+        <div style={{ fontWeight: 900, letterSpacing: 1 }}>PROY VOLLEY</div>
 
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <span style={{ opacity: 0.85 }}>
-            {user?.username}
+            {user?.username} {user?.role ? `/${user.role}` : ""}
           </span>
           <Button variant="danger" onClick={onLogout}>
             Salir
@@ -114,23 +95,10 @@ export default function AuthLayout() {
         </div>
       </header>
 
-      {/* BODY */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "auto 1fr",
-        }}
-      >
-        {/* SIDEBAR */}
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr" }}>
         <Sidebar sections={sidebarSections} />
 
-        {/* CONTENT */}
-        <main
-          style={{
-            padding: 16,
-            color: "var(--color-text)",
-          }}
-        >
+        <main style={{ padding: 16, color: "var(--color-text)" }}>
           <div style={{ marginBottom: 12 }}>
             <Breadcrumbs />
           </div>

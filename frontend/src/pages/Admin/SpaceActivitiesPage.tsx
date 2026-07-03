@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
+import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties } from "react";
 
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -15,6 +15,21 @@ import type { TipoActividad, EspacioActividad } from "../../models/actividad";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
 
+const panelStyle: CSSProperties = {
+  border: "1px solid var(--color-border)",
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.02)",
+  padding: 14,
+};
+
+const badgeStyle: CSSProperties = {
+  border: "1px solid var(--color-border)",
+  borderRadius: 999,
+  padding: "6px 10px",
+  fontSize: 12,
+  fontWeight: 900,
+};
+
 function moneyLike(value: string): string {
   const cleaned = value.replace(/[^\d.]/g, "");
   const parts = cleaned.split(".");
@@ -22,46 +37,38 @@ function moneyLike(value: string): string {
   return `${parts[0]}.${parts.slice(1).join("")}`;
 }
 
+function estadoColor(value: string) {
+  if (value === "LIBRE" || value === "Disponible") return "#8ee59f";
+  if (value === "OCUPADO" || value === "Mantenimiento") return "#ffd24a";
+  return "#ffb4b4";
+}
+
 export default function SpaceActivitiesPage() {
   const espacios = useEspacios();
   const tipos = useTiposActividad();
   const ea = useEspacioActividad();
 
-  // Paso 1: seleccionar espacio
   const [spaceQuery, setSpaceQuery] = useState("");
+  const [activityQuery, setActivityQuery] = useState("");
   const [espacioSel, setEspacioSel] = useState<Espacio | null>(null);
-
-  // Paso 2: asignar actividad (autocomplete)
-  const [actQuery, setActQuery] = useState("");
   const [tipoSel, setTipoSel] = useState<TipoActividad | null>(null);
-  const [showActDropdown, setShowActDropdown] = useState(false);
-  const actDropdownRef = useRef<HTMLDivElement | null>(null);
-
-  const [duracion, setDuracion] = useState<number>(60);
-  const [precio, setPrecio] = useState<string>("70.00");
-
-  // Relaciones del espacio
+  const [duracion, setDuracion] = useState(60);
+  const [precio, setPrecio] = useState("70.00");
   const [relaciones, setRelaciones] = useState<EspacioActividad[]>([]);
-
-  // Editor rápido
   const [editing, setEditing] = useState<EspacioActividad | null>(null);
-
   const [toast, setToast] = useState<ToastState>({ open: false, message: "", type: "info" });
 
-  // Load catálogos
   useEffect(() => {
     espacios.list({ page: "1" }).catch(() => {});
     tipos.list({ page: "1" }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Cargar relaciones cuando cambia el espacio
   useEffect(() => {
     if (!espacioSel?.id) {
       setRelaciones([]);
       setEditing(null);
       setTipoSel(null);
-      setActQuery("");
       return;
     }
 
@@ -71,62 +78,37 @@ export default function SpaceActivitiesPage() {
 
     setEditing(null);
     setTipoSel(null);
-    setActQuery("");
+    setActivityQuery("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [espacioSel?.id]);
 
-  // Click fuera: cierra dropdown
-  useEffect(() => {
-    const onDocClick = (evt: MouseEvent) => {
-      const target = evt.target as Node | null;
-      if (!target) return;
-      if (!actDropdownRef.current) return;
-      if (!actDropdownRef.current.contains(target)) setShowActDropdown(false);
-    };
-    document.addEventListener("mousedown", onDocClick);
-    return () => document.removeEventListener("mousedown", onDocClick);
-  }, []);
+  const espaciosList = useMemo(() => espacios.data?.results ?? [], [espacios.data?.results]);
+  const actividadesList = useMemo(() => tipos.data?.results ?? [], [tipos.data?.results]);
 
   const espaciosFiltrados = useMemo(() => {
-    const list = espacios.data?.results ?? [];
     const q = spaceQuery.trim().toLowerCase();
-    if (!q) return list;
-    return list.filter((s) => `${s.nombre} ${s.ubicacion} ${s.tags}`.toLowerCase().includes(q));
-  }, [espacios.data, spaceQuery]);
+    if (!q) return espaciosList;
+    return espaciosList.filter((space) =>
+      `${space.nombre} ${space.ubicacion} ${space.tags} ${space.estado_operativo}`.toLowerCase().includes(q)
+    );
+  }, [espaciosList, spaceQuery]);
 
-  // 🔑 Set de actividades ya asignadas al espacio
-  const assignedTipoIds = useMemo(() => {
-    return new Set(relaciones.map((r) => r.tipo));
-  }, [relaciones]);
+  const assignedTipoIds = useMemo(() => new Set(relaciones.map((rel) => rel.tipo)), [relaciones]);
 
-  // ✅ Solo actividades NO asignadas al espacio
   const actividadesDisponibles = useMemo(() => {
-    const list = tipos.data?.results ?? [];
-    return list.filter((t) => !assignedTipoIds.has(t.id));
-  }, [tipos.data, assignedTipoIds]);
+    return actividadesList.filter((activity) => activity.activo && !assignedTipoIds.has(activity.id));
+  }, [actividadesList, assignedTipoIds]);
 
-  // Dropdown filtrado por texto (sobre las disponibles)
   const actividadesFiltradas = useMemo(() => {
-    const q = actQuery.trim().toLowerCase();
+    const q = activityQuery.trim().toLowerCase();
     const base = actividadesDisponibles;
-
-    if (!q) return base.slice(0, 14);
-
-    return base
-      .filter((t) => `${t.nombre} ${t.descripcion}`.toLowerCase().includes(q))
-      .slice(0, 18);
-  }, [actividadesDisponibles, actQuery]);
-
-  // Aviso si el usuario escribe algo que ya está asignado
-  const activityAlreadyAssigned = useMemo(() => {
-    const q = actQuery.trim().toLowerCase();
-    if (!q) return false;
-    return relaciones.some((r) => (r.tipo_nombre ?? "").toLowerCase() === q);
-  }, [actQuery, relaciones]);
+    if (!q) return base;
+    return base.filter((activity) => `${activity.nombre} ${activity.descripcion ?? ""}`.toLowerCase().includes(q));
+  }, [actividadesDisponibles, activityQuery]);
 
   const selectedSpaceTitle = espacioSel
-    ? `${espacioSel.nombre} · ${espacioSel.ubicacion || "—"}`
-    : "Ninguno";
+    ? `${espacioSel.nombre} / ${espacioSel.ubicacion || "Sin ubicacion"}`
+    : "Sin espacio seleccionado";
 
   const refreshRelaciones = async () => {
     if (!espacioSel?.id) return;
@@ -134,10 +116,13 @@ export default function SpaceActivitiesPage() {
     setRelaciones(res.results ?? []);
   };
 
-  const onPickActividad = (t: TipoActividad) => {
-    setTipoSel(t);
-    setActQuery(t.nombre);
-    setShowActDropdown(false);
+  const onPickSpace = (space: Espacio) => {
+    setEspacioSel(space);
+  };
+
+  const onPickActividad = (activity: TipoActividad) => {
+    setTipoSel(activity);
+    setActivityQuery(activity.nombre);
   };
 
   const onAsignar = async () => {
@@ -145,30 +130,25 @@ export default function SpaceActivitiesPage() {
       setToast({ open: true, message: "Primero selecciona un espacio.", type: "error" });
       return;
     }
+
     if (!tipoSel?.id) {
-      setToast({ open: true, message: "Selecciona una actividad (no asignada).", type: "error" });
-      return;
-    }
-    if (assignedTipoIds.has(tipoSel.id)) {
-      setToast({ open: true, message: "Esa actividad ya está asignada a este espacio.", type: "error" });
+      setToast({ open: true, message: "Selecciona una actividad disponible.", type: "error" });
       return;
     }
 
     await ea.create({
       espacio: espacioSel.id,
       tipo: tipoSel.id,
-      duracion_minutos: Math.max(1, duracion),
-      precio_base: precio,
+      duracion_minutos: Math.max(1, Number(duracion) || 1),
+      precio_base: precio || "0",
       activo: true,
     });
 
-    setToast({ open: true, message: "Actividad asignada al espacio.", type: "success" });
-
+    setToast({ open: true, message: "Actividad asignada.", type: "success" });
     setTipoSel(null);
-    setActQuery("");
+    setActivityQuery("");
     setDuracion(60);
     setPrecio("70.00");
-
     await refreshRelaciones();
   };
 
@@ -176,12 +156,12 @@ export default function SpaceActivitiesPage() {
     if (!editing) return;
 
     await ea.patch(editing.id, {
-      duracion_minutos: editing.duracion_minutos,
-      precio_base: editing.precio_base,
+      duracion_minutos: Math.max(1, Number(editing.duracion_minutos) || 1),
+      precio_base: editing.precio_base || "0",
       activo: editing.activo,
     });
 
-    setToast({ open: true, message: "Relación actualizada.", type: "success" });
+    setToast({ open: true, message: "Asignacion actualizada.", type: "success" });
     setEditing(null);
     await refreshRelaciones();
   };
@@ -189,7 +169,7 @@ export default function SpaceActivitiesPage() {
   const onEliminar = async (id: string) => {
     await ea.remove(id);
     if (editing?.id === id) setEditing(null);
-    setToast({ open: true, message: "Relación eliminada.", type: "success" });
+    setToast({ open: true, message: "Asignacion eliminada.", type: "success" });
     await refreshRelaciones();
   };
 
@@ -198,268 +178,259 @@ export default function SpaceActivitiesPage() {
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
-      {/* CABECERA MÁS GRANDE */}
       <Card
-        title="Asignación de Actividades por Espacio"
-        subtitle="Elige un espacio → luego asigna solo actividades que aún no tiene."
+        title="Designacion de actividades"
+        subtitle="Elige un espacio y define que actividades acepta, con duracion y precio base."
+        rightSlot={
+          <Button variant="outline" onClick={() => void refreshRelaciones()} disabled={!espacioSel?.id || isBusy}>
+            Refrescar
+          </Button>
+        }
       >
-        <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-          <div style={{ fontSize: 13, opacity: 0.85 }}>Espacio:</div>
-          <div
-            style={{
-              border: "1px solid var(--color-border)",
-              borderRadius: 999,
-              padding: "8px 12px",
-              background: "rgba(255,255,255,0.04)",
-              fontWeight: 900,
-              fontSize: 13,
-              letterSpacing: 0.2,
-            }}
-          >
-            {selectedSpaceTitle}
-          </div>
-
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
-            <Button variant="outline" onClick={() => void refreshRelaciones()} disabled={!espacioSel?.id || isBusy}>
-              Refrescar
-            </Button>
-          </div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+          <span style={badgeStyle}>{selectedSpaceTitle}</span>
+          <span style={badgeStyle}>Asignadas: {relaciones.length}</span>
+          <span style={badgeStyle}>Disponibles: {actividadesDisponibles.length}</span>
         </div>
       </Card>
 
-      <div style={{ display: "grid", gap: 18, gridTemplateColumns: "520px 1fr" }}>
-        {/* PASO 1: Elegir espacio (más alto/espaciado) */}
-        <Card title="1) Selecciona un espacio" subtitle="Busca y haz click.">
-          <div style={{ display: "grid", gap: 14 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 390px) minmax(340px, 1fr) minmax(320px, 430px)", gap: 18, alignItems: "start" }}>
+        <Card title="1. Espacio" subtitle="Busca y selecciona donde se podra reservar.">
+          <div style={{ display: "grid", gap: 12 }}>
             <Input
               label="Buscar espacio"
-              placeholder="Ej: Cancha 1, Sede Central, techada..."
+              placeholder="Cancha, sede, etiqueta..."
               value={spaceQuery}
               onChange={(evt: ChangeEvent<HTMLInputElement>) => setSpaceQuery(evt.target.value)}
             />
 
             {espacios.loading && <Loader label="Cargando espacios..." />}
-            {espacios.error && <div style={{ color: "#ff5252", fontSize: 13 }}>{espacios.error}</div>}
 
-            <div style={{ display: "grid", gap: 10, maxHeight: 520, overflow: "auto" }}>
-              {espaciosFiltrados.map((s) => {
-                const active = espacioSel?.id === s.id;
+            <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 620, overflow: "auto" }}>
+              {espaciosFiltrados.map((space) => {
+                const active = espacioSel?.id === space.id;
                 return (
-                  <div
-                    key={s.id}
-                    onClick={() => setEspacioSel(s)}
+                  <button
+                    key={space.id}
+                    type="button"
+                    onClick={() => onPickSpace(space)}
                     style={{
+                      textAlign: "left",
                       border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
-                      borderRadius: 12,
+                      borderRadius: 8,
+                      background: active ? "rgba(255,210,74,0.07)" : "#0f1420",
+                      color: "var(--color-text)",
                       padding: 14,
                       cursor: "pointer",
-                      background: active ? "rgba(255,210,74,0.07)" : "transparent",
                     }}
                   >
-                    <div style={{ fontWeight: 950, fontSize: 14 }}>{s.nombre}</div>
-                    <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>
-                      {s.estado} · {s.ubicacion || "—"} · cap: {s.capacidad ?? "—"}
+                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                      <strong>{space.nombre}</strong>
+                      <span style={{ color: estadoColor(space.estado_actual), fontSize: 12, fontWeight: 950 }}>
+                        {space.estado_actual}
+                      </span>
                     </div>
-                    {s.tags && <div style={{ fontSize: 12, opacity: 0.7, marginTop: 6 }}>{s.tags}</div>}
-                  </div>
+                    <div style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: 13 }}>
+                      {space.estado_operativo} / {space.ubicacion || "Sin ubicacion"} / Cap: {space.capacidad ?? "-"}
+                    </div>
+                  </button>
                 );
               })}
+
               {!espacios.loading && espaciosFiltrados.length === 0 && (
-                <div style={{ opacity: 0.85, fontSize: 13 }}>No se encontraron espacios.</div>
+                <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No se encontraron espacios.</div>
               )}
             </div>
           </div>
         </Card>
 
-        {/* PASO 2/3 + LISTADO */}
-        <div style={{ display: "grid", gap: 18 }}>
-          {/* ASIGNACIÓN más grande */}
-          <Card
-            title="2) Asignar actividad"
-            subtitle="Aquí solo verás actividades que todavía NO están asignadas al espacio."
-          >
-            <div style={{ display: "grid", gap: 14 }}>
-              {/* Autocomplete */}
-              <div ref={actDropdownRef} style={{ position: "relative" }}>
-                <Input
-                  label="Actividad"
-                  placeholder={espacioSel ? "Escribe para buscar..." : "Primero selecciona un espacio"}
-                  value={actQuery}
-                  onChange={(evt: ChangeEvent<HTMLInputElement>) => {
-                    setActQuery(evt.target.value);
-                    setShowActDropdown(true);
-                    setTipoSel(null);
-                  }}
-                  onFocus={() => setShowActDropdown(true)}
-                  disabled={!espacioSel?.id}
-                />
-
-                {activityAlreadyAssigned && (
-                  <div style={{ fontSize: 12, color: "#ffcc66", marginTop: 6 }}>
-                    Esa actividad ya está asignada. Prueba otra.
-                  </div>
-                )}
-
-                {showActDropdown && espacioSel?.id && (
-                  <div
-                    style={{
-                      position: "absolute",
-                      zIndex: 20,
-                      top: 78,
-                      left: 0,
-                      right: 0,
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 14,
-                      background: "var(--color-surface)",
-                      maxHeight: 320,
-                      overflow: "auto",
-                      boxShadow: "0 12px 38px rgba(0,0,0,0.28)",
-                    }}
-                  >
-                    {tipos.loading && <div style={{ padding: 14 }}><Loader label="Cargando..." /></div>}
-
-                    {!tipos.loading && actividadesFiltradas.map((t) => (
-                      <div
-                        key={t.id}
-                        onClick={() => onPickActividad(t)}
-                        style={{
-                          padding: 14,
-                          cursor: "pointer",
-                          borderBottom: "1px solid rgba(255,255,255,0.06)",
-                        }}
-                      >
-                        <div style={{ fontWeight: 950, fontSize: 14 }}>{t.nombre}</div>
-                        <div style={{ fontSize: 12, opacity: 0.78 }}>{t.descripcion || "—"}</div>
-                      </div>
-                    ))}
-
-                    {!tipos.loading && actividadesFiltradas.length === 0 && (
-                      <div style={{ padding: 14, opacity: 0.85, fontSize: 13 }}>
-                        {actividadesDisponibles.length === 0
-                          ? "Este espacio ya tiene todas las actividades disponibles asignadas."
-                          : "No hay coincidencias con tu búsqueda."}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <Input
-                  label="Duración (min)"
-                  type="number"
-                  value={String(duracion)}
-                  onChange={(evt: ChangeEvent<HTMLInputElement>) => setDuracion(Number(evt.target.value))}
-                  disabled={!espacioSel?.id}
-                />
-                <Input
-                  label="Precio base (Bs)"
-                  value={precio}
-                  onChange={(evt: ChangeEvent<HTMLInputElement>) => setPrecio(moneyLike(evt.target.value))}
-                  disabled={!espacioSel?.id}
-                />
-              </div>
-
-              <Button
-                onClick={() => void onAsignar()}
-                fullWidth
-                disabled={!espacioSel?.id || !tipoSel?.id || ea.loading}
-              >
-                {ea.loading ? <Loader label="Asignando..." /> : "Asignar actividad"}
-              </Button>
-
-              {anyError && <div style={{ color: "#ff5252", fontSize: 13 }}>{anyError}</div>}
-            </div>
-          </Card>
-
-          {/* LISTADO asignadas */}
-          <Card title="Actividades asignadas" subtitle="Gestiona lo que ya está configurado en este espacio.">
-            {!espacioSel?.id ? (
-              <div style={{ opacity: 0.85, fontSize: 13 }}>
-                Selecciona un espacio para ver sus actividades asignadas.
+        <Card title="2. Asignar actividad" subtitle="Solo aparecen actividades activas y no asignadas.">
+          <div style={{ display: "grid", gap: 14 }}>
+            {!espacioSel ? (
+              <div style={{ ...panelStyle, color: "var(--color-text-muted)", fontSize: 13 }}>
+                Selecciona un espacio para continuar.
               </div>
             ) : (
               <>
-                {ea.loading && <Loader label="Cargando..." />}
+                <Input
+                  label="Buscar actividad"
+                  placeholder="Futbol, voley, entrenamiento..."
+                  value={activityQuery}
+                  onChange={(evt: ChangeEvent<HTMLInputElement>) => {
+                    setActivityQuery(evt.target.value);
+                    setTipoSel(null);
+                  }}
+                />
 
-                <div style={{ display: "grid", gap: 10, marginTop: 10, maxHeight: 420, overflow: "auto" }}>
-                  {relaciones.map((r) => (
-                    <div
-                      key={r.id}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1fr auto auto",
-                        gap: 10,
-                        alignItems: "center",
-                        border: "1px solid var(--color-border)",
-                        borderRadius: 12,
-                        padding: 14,
-                        background: editing?.id === r.id ? "rgba(255,210,74,0.07)" : "transparent",
-                      }}
-                    >
-                      <div onClick={() => setEditing(r)} style={{ cursor: "pointer" }}>
-                        <div style={{ fontWeight: 950, fontSize: 14 }}>{r.tipo_nombre ?? r.tipo}</div>
-                        <div style={{ fontSize: 13, opacity: 0.85, marginTop: 2 }}>
-                          {r.duracion_minutos} min · Bs {r.precio_base}
+                {tipos.loading && <Loader label="Cargando actividades..." />}
+
+                <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 260, overflow: "auto" }}>
+                  {actividadesFiltradas.map((activity) => {
+                    const active = tipoSel?.id === activity.id;
+                    return (
+                      <button
+                        key={activity.id}
+                        type="button"
+                        onClick={() => onPickActividad(activity)}
+                        style={{
+                          textAlign: "left",
+                          border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
+                          borderRadius: 8,
+                          background: active ? "rgba(255,210,74,0.07)" : "#0f1420",
+                          color: "var(--color-text)",
+                          padding: 12,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <strong>{activity.nombre}</strong>
+                        <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>
+                          {activity.descripcion || "Sin descripcion"}
                         </div>
-                      </div>
+                      </button>
+                    );
+                  })}
 
-                      <Button variant="outline" onClick={() => setEditing(r)}>
-                        Editar
-                      </Button>
-                      <Button variant="danger" onClick={() => void onEliminar(r.id)}>
-                        Eliminar
-                      </Button>
-                    </div>
-                  ))}
-
-                  {!ea.loading && relaciones.length === 0 && (
-                    <div style={{ opacity: 0.85, fontSize: 13 }}>
-                      Este espacio aún no tiene actividades asignadas.
+                  {!tipos.loading && actividadesFiltradas.length === 0 && (
+                    <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
+                      {actividadesDisponibles.length === 0
+                        ? "Este espacio ya tiene todas las actividades disponibles."
+                        : "No hay coincidencias."}
                     </div>
                   )}
                 </div>
 
-                {/* Editor */}
-                {editing && (
-                  <div style={{ marginTop: 16, borderTop: "1px solid var(--color-border)", paddingTop: 14 }}>
-                    <div style={{ fontWeight: 950, marginBottom: 12 }}>
-                      Editar: {editing.tipo_nombre ?? editing.tipo}
-                    </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <Input
+                    label="Duracion (min)"
+                    type="number"
+                    value={String(duracion)}
+                    onChange={(evt: ChangeEvent<HTMLInputElement>) => setDuracion(Number(evt.target.value))}
+                  />
+                  <Input
+                    label="Precio base (Bs)"
+                    value={precio}
+                    onChange={(evt: ChangeEvent<HTMLInputElement>) => setPrecio(moneyLike(evt.target.value))}
+                  />
+                </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                      <Input
-                        label="Duración (min)"
-                        type="number"
-                        value={String(editing.duracion_minutos)}
-                        onChange={(evt: ChangeEvent<HTMLInputElement>) =>
-                          setEditing((s) => (s ? { ...s, duracion_minutos: Number(evt.target.value) } : s))
-                        }
-                      />
-                      <Input
-                        label="Precio base (Bs)"
-                        value={editing.precio_base}
-                        onChange={(evt: ChangeEvent<HTMLInputElement>) =>
-                          setEditing((s) => (s ? { ...s, precio_base: moneyLike(evt.target.value) } : s))
-                        }
-                      />
-                    </div>
-
-                    <div style={{ display: "flex", gap: 12, marginTop: 14 }}>
-                      <Button onClick={() => void onGuardarEdicion()} fullWidth disabled={ea.loading}>
-                        {ea.loading ? <Loader label="Guardando..." /> : "Guardar cambios"}
-                      </Button>
-                      <Button variant="outline" onClick={() => setEditing(null)} disabled={ea.loading}>
-                        Cancelar
-                      </Button>
-                    </div>
-                  </div>
-                )}
+                <Button onClick={() => void onAsignar()} fullWidth disabled={!tipoSel?.id || ea.loading}>
+                  {ea.loading ? <Loader label="Asignando..." /> : "Asignar al espacio"}
+                </Button>
               </>
             )}
-          </Card>
-        </div>
+          </div>
+        </Card>
+
+        <Card title="3. Actividades asignadas" subtitle="Edita duracion, precio o disponibilidad.">
+          {!espacioSel ? (
+            <div style={{ ...panelStyle, color: "var(--color-text-muted)", fontSize: 13 }}>
+              Selecciona un espacio para ver sus actividades.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 12 }}>
+              {ea.loading && <Loader label="Cargando asignaciones..." />}
+
+              <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 350, overflow: "auto" }}>
+                {relaciones.map((rel) => {
+                  const active = editing?.id === rel.id;
+                  return (
+                    <div
+                      key={rel.id}
+                      style={{
+                        border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
+                        borderRadius: 8,
+                        background: active ? "rgba(255,210,74,0.07)" : "#0f1420",
+                        padding: 12,
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setEditing({ ...rel })}
+                        style={{
+                          width: "100%",
+                          textAlign: "left",
+                          border: 0,
+                          background: "transparent",
+                          color: "var(--color-text)",
+                          padding: 0,
+                          cursor: "pointer",
+                        }}
+                      >
+                        <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                          <strong>{rel.tipo_nombre ?? rel.tipo}</strong>
+                          <span style={{ color: rel.activo ? "#8ee59f" : "#ffb4b4", fontSize: 12, fontWeight: 950 }}>
+                            {rel.activo ? "Activa" : "Inactiva"}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: 13 }}>
+                          {rel.duracion_minutos} min / Bs {rel.precio_base}
+                        </div>
+                      </button>
+                    </div>
+                  );
+                })}
+
+                {!ea.loading && relaciones.length === 0 && (
+                  <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
+                    Este espacio aun no tiene actividades asignadas.
+                  </div>
+                )}
+              </div>
+
+              {editing && (
+                <div style={{ ...panelStyle, display: "grid", gap: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 12, color: "var(--color-text-muted)", fontWeight: 800 }}>Editando</div>
+                    <div style={{ fontSize: 17, fontWeight: 950 }}>{editing.tipo_nombre ?? editing.tipo}</div>
+                  </div>
+
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                    <Input
+                      label="Duracion (min)"
+                      type="number"
+                      value={String(editing.duracion_minutos)}
+                      onChange={(evt: ChangeEvent<HTMLInputElement>) =>
+                        setEditing((s) => (s ? { ...s, duracion_minutos: Number(evt.target.value) } : s))
+                      }
+                    />
+                    <Input
+                      label="Precio base (Bs)"
+                      value={editing.precio_base}
+                      onChange={(evt: ChangeEvent<HTMLInputElement>) =>
+                        setEditing((s) => (s ? { ...s, precio_base: moneyLike(evt.target.value) } : s))
+                      }
+                    />
+                  </div>
+
+                  <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={!!editing.activo}
+                      onChange={(evt) => setEditing((s) => (s ? { ...s, activo: evt.target.checked } : s))}
+                    />
+                    <span style={{ fontSize: 13, fontWeight: 800 }}>Disponible para reservar</span>
+                  </label>
+
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <Button onClick={() => void onGuardarEdicion()} disabled={ea.loading} fullWidth>
+                      {ea.loading ? <Loader label="Guardando..." /> : "Guardar"}
+                    </Button>
+                    <Button variant="outline" onClick={() => setEditing(null)} disabled={ea.loading}>
+                      Cerrar
+                    </Button>
+                  </div>
+
+                  <Button variant="danger" onClick={() => void onEliminar(editing.id)} disabled={ea.loading}>
+                    Quitar del espacio
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
       </div>
+
+      {anyError && <div style={{ color: "#ff5252", fontSize: 13 }}>{anyError}</div>}
 
       <Toast
         open={toast.open}

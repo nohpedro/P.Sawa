@@ -3,6 +3,7 @@ import { PATHS } from "./paths";
 
 import PublicOnlyRoute from "./guards/PublicOnlyRoute";
 import ProtectedRoute from "./guards/ProtectedRoute";
+import ModuleRoute from "./guards/ModuleRoute";
 
 import PublicLayout from "../layouts/PublicLayout";
 import AuthLayout from "../layouts/AuthLayout";
@@ -16,6 +17,8 @@ import SpaceActivitiesPage from "../pages/Admin/SpaceActivitiesPage";
 import CustomersPage from "../pages/Customers/CustomersPage.tsx";
 import CustomerDetailPage from "../pages/Customers/CustomerDetailPage.tsx";
 import ReservationsPage from "../pages/Reservations/ReservationsPage.tsx";
+import ReservationHistoryPage from "../pages/Reservations/ReservationHistoryPage.tsx";
+import UserRolesPage from "../pages/Admin/UserRolesPage.tsx";
 
 export const routes = [
   {
@@ -38,14 +41,15 @@ export const routes = [
         element: <AuthLayout />,
         children: [
           { path: PATHS.app, element: <Navigate to={PATHS.availability} replace /> },
-          { path: PATHS.availability, element: <AvailabilityPage /> },
-
-          { path: PATHS.adminEspacios, element: <SpacesPage /> },
-          { path: PATHS.adminActividades, element: <ActivitiesPage /> },
-          { path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> },
-          { path: PATHS.customers, element: <CustomersPage /> },
-          { path: PATHS.customerDetail, element: <CustomerDetailPage /> },
-          { path: PATHS.reservations, element: <ReservationsPage /> },
+          { element: <ModuleRoute module="availability" />, children: [{ path: PATHS.availability, element: <AvailabilityPage /> }] },
+          { element: <ModuleRoute module="spaces" />, children: [{ path: PATHS.adminEspacios, element: <SpacesPage /> }] },
+          { element: <ModuleRoute module="activities" />, children: [{ path: PATHS.adminActividades, element: <ActivitiesPage /> }] },
+          { element: <ModuleRoute module="space_activities" />, children: [{ path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> }] },
+          { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customers, element: <CustomersPage /> }] },
+          { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customerDetail, element: <CustomerDetailPage /> }] },
+          { element: <ModuleRoute module="reservations" />, children: [{ path: PATHS.reservations, element: <ReservationsPage /> }] },
+          { element: <ModuleRoute module="history" />, children: [{ path: PATHS.reservationHistory, element: <ReservationHistoryPage /> }] },
+          { element: <ModuleRoute module="users" />, children: [{ path: PATHS.usersRoles, element: <UserRolesPage /> }] },
         ],
       },
     ],

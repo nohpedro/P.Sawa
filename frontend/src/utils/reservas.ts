@@ -71,7 +71,7 @@ export function calcularCostoPorHora(
  * Útil si tu negocio cobra por bloques (ej: 60 min) usando EspacioActividad.duracion_minutos.
  *
  * - duracionMinutosBase: ej 60
- * - Se cobra por bloques completos (ceil)
+ * - Se cobra proporcional al tiempo usado: 90 min / 60 = 1.5 bloques
  * - precioBaseBloqueStr: Bs por bloque
  */
 export function calcularCostoPorBloques(
@@ -82,7 +82,7 @@ export function calcularCostoPorBloques(
 ): { minutos: number; bloques: number; total: number } {
   const minutos = calcularDuracionMinutos(inicioISO, finISO);
   const base = Math.max(1, Math.floor(duracionMinutosBase));
-  const bloques = Math.max(1, Math.ceil(minutos / base));
+  const bloques = round2(minutos / base);
   const precioBloque = parseDecimal(precioBaseBloqueStr);
   const total = round2(bloques * precioBloque);
   return { minutos, bloques, total };

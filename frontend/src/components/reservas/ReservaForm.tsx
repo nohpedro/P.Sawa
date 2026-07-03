@@ -1,6 +1,4 @@
-// src/components/reservas/ReservaForm.tsx
 import { useEffect, useMemo, useState } from "react";
-import Card from "../ui/Card";
 import Select from "../ui/Select";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
@@ -22,19 +20,18 @@ import type { ClienteWriteDTO } from "../../models/cliente";
 
 import { extractErrorMessage, humanizeReservaError } from "../../utils/apiError";
 
-// reloj inicio/fin
 import TimeRangePicker from "./TimeRangePicker";
 import type { HHMM } from "./ClockTimePicker";
 
-// helpers internos para comparar horas sin Date
 function hhmmToMinutes(v: string): number {
   const [h, m] = v.split(":").map((x) => Number(x));
-  return (h * 60) + m;
+  return h * 60 + m;
 }
 
 function minutesToHHMM(total: number): HHMM {
-  const h = Math.floor(total / 60);
-  const m = total % 60;
+  const normalized = ((total % 1440) + 1440) % 1440;
+  const h = Math.floor(normalized / 60);
+  const m = normalized % 60;
   const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
   return `${pad2(h)}:${pad2(m)}` as HHMM;
 }
@@ -43,12 +40,19 @@ function addMinutes(hhmm: HHMM, add: number): HHMM {
   return minutesToHHMM(hhmmToMinutes(hhmm) + add);
 }
 
+function formatNumber(value: number): string {
+  return new Intl.NumberFormat("es-BO", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  }).format(value);
+}
+
 export default function ReservaForm({
   day,
   onSubmit,
   loading,
 }: {
-  day: string; // YYYY-MM-DD
+  day: string;
   loading: boolean;
   onSubmit: (payload: ReservaWriteDTO) => Promise<void>;
 }) {
@@ -60,13 +64,9 @@ export default function ReservaForm({
   const [clienteId, setClienteId] = useState("");
   const [espacioId, setEspacioId] = useState("");
   const [actividadId, setActividadId] = useState("");
-
-  // reloj: inicio y fin
   const [inicioHHMM, setInicioHHMM] = useState<HHMM>("19:00");
   const [finHHMM, setFinHHMM] = useState<HHMM>("20:00");
-
   const [notas, setNotas] = useState("");
-
   const [uiError, setUiError] = useState<string | null>(null);
   const [createClienteOpen, setCreateClienteOpen] = useState(false);
 
@@ -100,10 +100,9 @@ export default function ReservaForm({
   }, [espacios.data]);
 
   const actividadOptions = useMemo(() => {
-    const res = actividadesDisponiblesParaEspacio;
     return [
       { label: espacioId ? "Selecciona actividad..." : "Selecciona un espacio primero...", value: "" },
-      ...res.map((t) => ({ label: t.nombre, value: t.id })),
+      ...actividadesDisponiblesParaEspacio.map((t) => ({ label: t.nombre, value: t.id })),
     ];
   }, [actividadesDisponiblesParaEspacio, espacioId]);
 
@@ -112,11 +111,9 @@ export default function ReservaForm({
     return rels.find((r) => r.tipo === actividadId) ?? null;
   }, [ea.data, actividadId]);
 
-  // Si la actividad tiene una duración "base", al seleccionar actividad ajusta fin = inicio + base
   useEffect(() => {
     if (!relEA?.duracion_minutos) return;
-    const nextFin = addMinutes(inicioHHMM, relEA.duracion_minutos);
-    setFinHHMM(nextFin);
+    setFinHHMM(addMinutes(inicioHHMM, relEA.duracion_minutos));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [relEA?.duracion_minutos]);
 
@@ -155,7 +152,7 @@ export default function ReservaForm({
     setUiError(null);
 
     if (!clienteId) {
-      setUiError("Selecciona un cliente (o créalo rápido).");
+      setUiError("Selecciona un cliente o crealo rapido.");
       return;
     }
 
@@ -198,9 +195,6 @@ export default function ReservaForm({
     return created;
   };
 
-  const clientesList = clientes.data?.results ?? [];
-
-  // Handlers con auto-corrección simple para que fin nunca quede antes/igual que inicio
   const onInicioChange = (v: HHMM) => {
     setInicioHHMM(v);
 
@@ -208,19 +202,45 @@ export default function ReservaForm({
     const f = hhmmToMinutes(finHHMM);
 
     if (f <= i) {
-      // regla: si fin queda inválido, empuja fin a +60 min (o base si existe)
       const step = relEA?.duracion_minutos ?? 60;
       setFinHHMM(minutesToHHMM(i + step));
     }
   };
 
-  const onFinChange = (v: HHMM) => {
-    setFinHHMM(v);
-  };
+  const clientesList = clientes.data?.results ?? [];
 
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <Card title="Nueva reserva" subtitle={`Día seleccionado: ${day}`}>
+    <div style={{ display: "grid", gap: 16, color: "#f8fafc" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          border: "1px solid #263244",
+          borderRadius: 10,
+          background: "#0b1220",
+          padding: 14,
+        }}
+      >
+        <div>
+          <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 800 }}>Dia seleccionado</div>
+          <div style={{ fontSize: 20, color: "#f8fafc", fontWeight: 950 }}>{day}</div>
+        </div>
+        <div style={{ color: "#94a3b8", fontSize: 13, fontWeight: 800 }}>
+          Completa cliente, espacio, actividad y horario.
+        </div>
+      </div>
+
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
+          gap: 16,
+          alignItems: "start",
+        }}
+      >
         <div style={{ display: "grid", gap: 14 }}>
           <ClientePicker
             clientes={clientesList}
@@ -235,8 +255,7 @@ export default function ReservaForm({
             options={espacioOptions}
             value={espacioId}
             onChange={(e) => {
-              const v = e.target.value;
-              setEspacioId(v);
+              setEspacioId(e.target.value);
               setActividadId("");
             }}
           />
@@ -250,62 +269,68 @@ export default function ReservaForm({
           />
 
           {!actividadValida && (
-            <div style={{ padding: 10, borderRadius: 12, border: "1px solid #ff3b3b", color: "#ff3b3b", fontWeight: 800 }}>
+            <div style={{ padding: 10, borderRadius: 8, border: "1px solid #ff5252", color: "#fecaca", background: "#3f1111", fontWeight: 800 }}>
               Ese espacio no tiene asignada la actividad seleccionada.
             </div>
           )}
+        </div>
 
+        <div style={{ display: "grid", gap: 14 }}>
           <TimeRangePicker
             inicioHHMM={inicioHHMM}
             onInicioChange={onInicioChange}
             finHHMM={finHHMM}
-            onFinChange={onFinChange}
+            onFinChange={setFinHHMM}
             minuteStep={5}
             disabled={!espacioId || !actividadId}
           />
 
           <Input label="Notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional" />
 
-          <div style={{ border: "1px solid var(--color-border)", borderRadius: 14, padding: 14, background: "rgba(255,255,255,0.02)" }}>
-            <div style={{ fontWeight: 950, marginBottom: 6 }}>Costo estimado</div>
+          <div style={{ border: "1px solid #263244", borderRadius: 10, padding: 14, background: "#0b1220", color: "#f8fafc" }}>
+            <div style={{ fontWeight: 950, marginBottom: 6, color: "#ffd24a" }}>Costo estimado</div>
 
             {costo.mode === "bloques" ? (
-              <div style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.4 }}>
                 <div>
-                  Duración: <b>{costo.minutos} min</b> · Base: <b>{costo.baseMin} min/bloque</b> · Bloques: <b>{costo.bloques}</b>
+                  Duracion: <b>{costo.minutos} min</b> / Base: <b>{costo.baseMin} min/bloque</b> / Bloques usados: <b>{formatNumber(costo.bloques)}</b>
                 </div>
                 <div>
-                  Precio: <b>Bs {costo.precioRef}</b> por bloque · Total: <b>Bs {costo.total}</b>
+                  Precio: <b>Bs {costo.precioRef}</b> por bloque / Total: <b>Bs {costo.total}</b>
                 </div>
               </div>
             ) : (
-              <div style={{ fontSize: 13, opacity: 0.9, lineHeight: 1.4 }}>
+              <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.4 }}>
                 <div>
-                  Duración: <b>{costo.minutos} min</b> · Horas: <b>{costo.horas.toFixed(2)}</b>
+                  Duracion: <b>{costo.minutos} min</b> / Horas: <b>{costo.horas.toFixed(2)}</b>
                 </div>
                 <div>
-                  Precio: <b>Bs {costo.precioRef}</b> por hora · Total: <b>Bs {costo.total}</b>
+                  Precio: <b>Bs {costo.precioRef}</b> por hora / Total: <b>Bs {costo.total}</b>
                 </div>
-                <div style={{ fontSize: 12, opacity: 0.75, marginTop: 6 }}>
-                  * Para costo por bloques, asegúrate que exista relación EspacioActividad (duración/precio) para esa actividad.
+                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
+                  Para costo por bloques debe existir relacion EspacioActividad con duracion y precio.
                 </div>
               </div>
             )}
           </div>
-
-          {uiError && <div style={{ color: "#ff5252", fontSize: 13, fontWeight: 800, whiteSpace: "pre-line" }}>{uiError}</div>}
-
-          <Button onClick={() => void submit()} disabled={loading || !canSubmit} fullWidth>
-            {loading ? <Loader label="Guardando..." /> : "Crear reserva"}
-          </Button>
         </div>
-      </Card>
+      </div>
+
+      {uiError && (
+        <div style={{ color: "#fecaca", background: "#3f1111", border: "1px solid #ff5252", borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 800, whiteSpace: "pre-line" }}>
+          {uiError}
+        </div>
+      )}
 
       {(espacios.error || tipos.error || ea.error || clientes.error) && (
-        <div style={{ color: "#ff5252", fontSize: 13 }}>
+        <div style={{ color: "#fecaca", background: "#3f1111", border: "1px solid #ff5252", borderRadius: 8, padding: 10, fontSize: 13 }}>
           {espacios.error || tipos.error || ea.error || clientes.error}
         </div>
       )}
+
+      <Button onClick={() => void submit()} disabled={loading || !canSubmit} fullWidth>
+        {loading ? <Loader label="Guardando..." /> : "Crear reserva"}
+      </Button>
 
       <QuickCreateClienteModal
         open={createClienteOpen}

@@ -1,18 +1,22 @@
 from django.contrib.auth import get_user_model
+from decimal import Decimal, ROUND_HALF_UP
 from rest_framework import serializers
 
 from common_vap.enums import ReservaEstado
 from users.models import Cliente
-from ..models import Reserva
+from ..models import EspacioActividad, Reserva
 
 User = get_user_model()
 
 
 class ReservaSerializer(serializers.ModelSerializer):
     espacio_nombre = serializers.ReadOnlyField(source="espacio.nombre")
+    actividad_nombre = serializers.ReadOnlyField(source="actividad.nombre")
     usuario_username = serializers.ReadOnlyField(source="usuario.get_username")
     cliente_nombre = serializers.SerializerMethodField()
     cliente_apellido = serializers.SerializerMethodField()
+    duracion_minutos = serializers.SerializerMethodField()
+    monto_estimado = serializers.SerializerMethodField()
 
     usuario = serializers.PrimaryKeyRelatedField(
         queryset=User.objects.all(),
@@ -37,8 +41,11 @@ class ReservaSerializer(serializers.ModelSerializer):
             "cliente_nombre",
             "cliente_apellido",
             "actividad",
+            "actividad_nombre",
             "inicio",
             "fin",
+            "duracion_minutos",
+            "monto_estimado",
             "estado_reserva",
             "notas",
             "created_at",
@@ -125,3 +132,25 @@ class ReservaSerializer(serializers.ModelSerializer):
         if obj.cliente_id:
             return getattr(obj.cliente, "apellido", "")
         return getattr(getattr(obj.usuario, "cliente", None), "apellido", "")
+
+    def get_duracion_minutos(self, obj: Reserva) -> int:
+        if not obj.inicio or not obj.fin or obj.fin <= obj.inicio:
+            return 0
+        return round((obj.fin - obj.inicio).total_seconds() / 60)
+
+    def get_monto_estimado(self, obj: Reserva) -> str:
+        minutos = self.get_duracion_minutos(obj)
+        if minutos <= 0:
+            return "0.00"
+
+        relacion = (
+            EspacioActividad.objects
+            .filter(espacio=obj.espacio, tipo=obj.actividad, activo=True)
+            .first()
+        )
+        if not relacion or relacion.duracion_minutos <= 0:
+            return "0.00"
+
+        bloques = Decimal(minutos) / Decimal(relacion.duracion_minutos)
+        total = bloques * relacion.precio_base
+        return str(total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))

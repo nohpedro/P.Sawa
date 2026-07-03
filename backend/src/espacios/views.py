@@ -8,7 +8,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from auth_vap.authentication import AccessTokenAuthentication
-from common_vap.permissions import IsAdminOrReadOnly
+from common_vap.permissions import HasModuleAccess, IsAdminOrReadOnly
 from .models import (
     TipoActividad,
     Espacio,
@@ -32,7 +32,7 @@ from .serializers import (
 
 
 AUTH = (AccessTokenAuthentication,)
-PERMS = (IsAdminOrReadOnly,)
+PERMS = (HasModuleAccess, IsAdminOrReadOnly)
 BACKENDS = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)
 
 
@@ -44,6 +44,8 @@ BACKENDS = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)
     ),
 )
 class TipoActividadViewSet(viewsets.ModelViewSet):
+    required_module = "activities"
+    read_modules = ("activities", "reservations", "history", "space_activities")
     queryset = TipoActividad.objects.all()
     serializer_class = TipoActividadSerializer
     authentication_classes = AUTH
@@ -63,6 +65,8 @@ class TipoActividadViewSet(viewsets.ModelViewSet):
     ),
 )
 class EspacioViewSet(viewsets.ModelViewSet):
+    required_module = "spaces"
+    read_modules = ("spaces", "availability", "reservations", "history", "space_activities")
     queryset = (
         Espacio.objects
         .all()
@@ -82,6 +86,8 @@ class EspacioViewSet(viewsets.ModelViewSet):
     description="CRUD de relaciones Espacio-Actividad (duración y precio base por actividad en un espacio).",
 )
 class EspacioActividadViewSet(viewsets.ModelViewSet):
+    required_module = "space_activities"
+    read_modules = ("space_activities", "reservations", "history")
     queryset = EspacioActividad.objects.select_related("espacio", "tipo")
     serializer_class = EspacioActividadSerializer
     authentication_classes = AUTH
@@ -116,6 +122,7 @@ class EspacioActividadViewSet(viewsets.ModelViewSet):
     ],
 )
 class CalendarioViewSet(viewsets.ModelViewSet):
+    required_module = "availability"
     queryset = Calendario.objects.select_related("espacio")
     serializer_class = CalendarioSerializer
     authentication_classes = AUTH
@@ -155,6 +162,7 @@ class CalendarioViewSet(viewsets.ModelViewSet):
     ),
 )
 class ReglaViewSet(viewsets.ModelViewSet):
+    required_module = "availability"
     queryset = Regla.objects.select_related("espacio")
     serializer_class = ReglaSerializer
     authentication_classes = AUTH
@@ -173,6 +181,7 @@ class ReglaViewSet(viewsets.ModelViewSet):
     ),
 )
 class ReglaGlobalViewSet(viewsets.ModelViewSet):
+    required_module = "availability"
     queryset = ReglaGlobal.objects.prefetch_related("espacios")
     serializer_class = ReglaGlobalSerializer
     authentication_classes = AUTH
@@ -191,6 +200,7 @@ class ReglaGlobalViewSet(viewsets.ModelViewSet):
     ),
 )
 class PromocionViewSet(viewsets.ModelViewSet):
+    required_module = "availability"
     queryset = Promocion.objects.prefetch_related("espacios")
     serializer_class = PromocionSerializer
     authentication_classes = AUTH
@@ -228,6 +238,8 @@ class PromocionViewSet(viewsets.ModelViewSet):
     ],
 )
 class ReservaViewSet(viewsets.ModelViewSet):
+    required_module = "reservations"
+    read_modules = ("reservations", "history")
     queryset = Reserva.objects.select_related("espacio", "usuario", "cliente", "actividad")
     serializer_class = ReservaSerializer
     authentication_classes = AUTH

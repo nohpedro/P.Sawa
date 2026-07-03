@@ -1,10 +1,25 @@
-import { useState, type ChangeEvent } from "react";
+import { useState, type ChangeEvent, type CSSProperties } from "react";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import Loader from "../../components/ui/Loader";
 import Toast from "../../components/ui/Toast";
 import type { ClienteWriteDTO, Cliente } from "../../models/cliente";
+
+const emptyForm: ClienteWriteDTO = {
+  nombre: "",
+  apellido: "",
+  telefono: "",
+  documento: "",
+  notas: "",
+};
+
+const panelStyle: CSSProperties = {
+  border: "1px solid var(--color-border)",
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.02)",
+  padding: 12,
+};
 
 export default function CustomersCreatePanel({
   loading,
@@ -13,14 +28,7 @@ export default function CustomersCreatePanel({
   loading: boolean;
   onCreate: (payload: ClienteWriteDTO) => Promise<Cliente>;
 }) {
-  const [form, setForm] = useState<ClienteWriteDTO>({
-    nombre: "",
-    apellido: "",
-    telefono: "",
-    documento: "",
-    notas: "",
-  });
-
+  const [form, setForm] = useState<ClienteWriteDTO>(emptyForm);
   const [toast, setToast] = useState<{ open: boolean; message: string; type: "info" | "success" | "error" }>({
     open: false,
     message: "",
@@ -30,28 +38,29 @@ export default function CustomersCreatePanel({
   const setField =
     (key: keyof ClienteWriteDTO) =>
     (evt: ChangeEvent<HTMLInputElement>) => {
-      const value = evt.target.value;
-      setForm((s) => ({ ...s, [key]: value }));
+      setForm((s) => ({ ...s, [key]: evt.target.value }));
     };
 
   const reset = () => {
-    setForm({ nombre: "", apellido: "", telefono: "", documento: "", notas: "" });
+    setForm(emptyForm);
   };
 
   const handleCreate = async () => {
-    if (!form.nombre.trim() && !form.apellido.trim()) {
+    const payload = {
+      nombre: form.nombre.trim(),
+      apellido: form.apellido.trim(),
+      telefono: form.telefono.trim(),
+      documento: form.documento.trim(),
+      notas: form.notas.trim(),
+    };
+
+    if (!payload.nombre && !payload.apellido) {
       setToast({ open: true, message: "Ingresa al menos nombre o apellido.", type: "error" });
       return;
     }
 
     try {
-      await onCreate({
-        nombre: form.nombre.trim(),
-        apellido: form.apellido.trim(),
-        telefono: form.telefono.trim(),
-        documento: form.documento.trim(),
-        notas: form.notas.trim(),
-      });
+      await onCreate(payload);
       setToast({ open: true, message: "Cliente creado.", type: "success" });
       reset();
     } catch {
@@ -61,17 +70,27 @@ export default function CustomersCreatePanel({
 
   return (
     <>
-      <Card title="Crear cliente" subtitle="Registra datos básicos del cliente.">
+      <Card title="Nuevo cliente" subtitle="Registra los datos principales para reservas.">
         <div style={{ display: "grid", gap: 14 }}>
-          <Input label="Nombre" value={form.nombre} onChange={setField("nombre")} placeholder="Ej: Juan" />
-          <Input label="Apellido" value={form.apellido} onChange={setField("apellido")} placeholder="Ej: Pérez" />
-          <Input label="Teléfono" value={form.telefono} onChange={setField("telefono")} placeholder="Ej: 76543210" />
-          <Input label="Documento" value={form.documento} onChange={setField("documento")} placeholder="CI / NIT / etc." />
-          <Input label="Notas" value={form.notas} onChange={setField("notas")} placeholder="Opcional" />
+          <div style={{ ...panelStyle, display: "grid", gap: 12 }}>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <Input label="Nombre" value={form.nombre} onChange={setField("nombre")} placeholder="Ej: Juan" />
+              <Input label="Apellido" value={form.apellido} onChange={setField("apellido")} placeholder="Ej: Perez" />
+            </div>
 
-          <Button onClick={() => void handleCreate()} disabled={loading} fullWidth>
-            {loading ? <Loader label="Guardando..." /> : "Crear cliente"}
-          </Button>
+            <Input label="Telefono" value={form.telefono} onChange={setField("telefono")} placeholder="Ej: 76543210" />
+            <Input label="Documento" value={form.documento} onChange={setField("documento")} placeholder="CI / NIT" />
+            <Input label="Notas" value={form.notas} onChange={setField("notas")} placeholder="Opcional" />
+          </div>
+
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button onClick={() => void handleCreate()} disabled={loading || (!form.nombre.trim() && !form.apellido.trim())} fullWidth>
+              {loading ? <Loader label="Guardando..." /> : "Crear cliente"}
+            </Button>
+            <Button variant="outline" onClick={reset} disabled={loading}>
+              Limpiar
+            </Button>
+          </div>
         </div>
       </Card>
 

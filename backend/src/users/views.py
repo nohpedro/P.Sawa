@@ -5,6 +5,7 @@ from django.utils import timezone
 from django.utils.text import slugify
 
 from rest_framework import viewsets, permissions, status
+from rest_framework.decorators import action
 from rest_framework.generics import RetrieveUpdateAPIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
@@ -14,6 +15,7 @@ from .models import Cliente
 from .serializers import (
     UserListSerializer,
     UserWriteSerializer,
+    UserPasswordResetSerializer,
     ClienteReadSerializer,
     ClienteWriteSerializer,
 )
@@ -24,6 +26,11 @@ User = get_user_model()
 class IsAdminOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_staff)
+
+
+class IsSuperUserOnly(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_superuser)
 
 
 class IsAdminOrSelf(permissions.BasePermission):
@@ -53,14 +60,30 @@ class UserViewSet(viewsets.ModelViewSet):
     queryset = User.objects.all().order_by("-date_joined")
 
     def get_permissions(self):
-        if self.action in ("list", "create", "destroy"):
-            return [IsAdminOnly()]
-        return [IsAdminOrSelf()]
+        return [IsSuperUserOnly()]
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
             return UserWriteSerializer
         return UserListSerializer
+
+    @action(detail=True, methods=["post"], url_path="reset-password")
+    def reset_password(self, request, pk=None):
+        user = self.get_object()
+        if user.is_superuser and user != request.user:
+            raise ValidationError({"user": "No puedes resetear la contrasena de otro superusuario."})
+
+        serializer = UserPasswordResetSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        password = (serializer.validated_data.get("password") or "").strip()
+
+        if not password:
+            now = timezone.localtime(timezone.now())
+            password = f"{user.username}{now.day:02d}{now.month:02d}"
+
+        user.set_password(password)
+        user.save(update_fields=["password"])
+        return Response({"id": user.id, "username": user.username, "password": password})
 
 
 def _generate_unique_username(nombre: str, apellido: str) -> str:

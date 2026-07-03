@@ -14,8 +14,11 @@ export interface Reserva {
   cliente_apellido?: string;
 
   actividad: string; // UUID
+  actividad_nombre?: string;
   inicio: string; // ISO
   fin: string; // ISO
+  duracion_minutos?: number;
+  monto_estimado?: string;
 
   estado_reserva: ReservaEstado;
 

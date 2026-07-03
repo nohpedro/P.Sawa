@@ -1,5 +1,5 @@
-import { useMemo, useState, useEffect, type ChangeEvent, type FormEvent } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useEffect, useMemo, useState, type ChangeEvent, type FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -18,32 +18,30 @@ export default function LoginPage() {
 
   const redirectTo = useMemo(() => {
     const state = location.state as { from?: string } | null;
-    return state?.from ?? PATHS.login; // por ahora solo existe login
+    return state?.from ?? PATHS.availability;
   }, [location.state]);
 
-  const [form, setForm] = useState<LoginFormValues>({
-    username: "",
-    password: "",
-  });
-
+  const [form, setForm] = useState<LoginFormValues>({ username: "", password: "" });
   const [errors, setErrors] = useState<Partial<Record<keyof LoginFormValues, string>>>({});
+  const [authError, setAuthError] = useState("");
   const [toast, setToast] = useState<{ open: boolean; message: string; type: "info" | "success" | "error" }>({
     open: false,
     message: "",
     type: "info",
   });
 
-  // Evita navegar dentro del render
   useEffect(() => {
     if (isAuthenticated) {
-      navigate(PATHS.login, { replace: true });
+      navigate(PATHS.availability, { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
   const onChange =
-    (key: keyof LoginFormValues) => (e: ChangeEvent<HTMLInputElement>) => {
-      setForm((prev) => ({ ...prev, [key]: e.target.value }));
+    (key: keyof LoginFormValues) =>
+    (event: ChangeEvent<HTMLInputElement>) => {
+      setForm((prev) => ({ ...prev, [key]: event.target.value }));
       setErrors((prev) => ({ ...prev, [key]: undefined }));
+      setAuthError("");
     };
 
   const validate = (): boolean => {
@@ -52,6 +50,7 @@ export default function LoginPage() {
       setErrors({});
       return true;
     }
+
     const fieldErrors: Partial<Record<keyof LoginFormValues, string>> = {};
     for (const issue of result.error.issues) {
       const field = issue.path[0] as keyof LoginFormValues | undefined;
@@ -61,8 +60,9 @@ export default function LoginPage() {
     return false;
   };
 
-  const onSubmit = async (e: FormEvent) => {
-    e.preventDefault();
+  const onSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    setAuthError("");
 
     if (!validate()) {
       setToast({ open: true, message: "Revisa los campos marcados.", type: "error" });
@@ -71,20 +71,18 @@ export default function LoginPage() {
 
     try {
       await login({ username: form.username, password: form.password });
-      setToast({ open: true, message: "Sesión iniciada.", type: "success" });
+      setToast({ open: true, message: "Sesion iniciada.", type: "success" });
       navigate(redirectTo, { replace: true });
     } catch {
-      setToast({ open: true, message: "Credenciales inválidas o error del servidor.", type: "error" });
+      const message = "Usuario o contrasena incorrectos.";
+      setAuthError(message);
+      setToast({ open: true, message, type: "error" });
     }
   };
 
   return (
     <>
-      <Card
-        title="INICIO DE SESIÓN"
-        subtitle="Accede a Sawa"
-        style={{ width: 420 }}
-      >
+      <Card title="INICIO DE SESION" subtitle="Accede a Sawa" style={{ width: 420 }}>
         <form onSubmit={onSubmit} style={{ display: "grid", gap: 14 }}>
           <Input
             label="Usuario"
@@ -96,7 +94,7 @@ export default function LoginPage() {
           />
 
           <Input
-            label="Contraseña"
+            label="Contrasena"
             placeholder="*********"
             type="password"
             value={form.password}
@@ -104,6 +102,23 @@ export default function LoginPage() {
             error={errors.password}
             autoComplete="current-password"
           />
+
+          {authError && (
+            <div
+              role="alert"
+              style={{
+                border: "1px solid #ff5252",
+                borderRadius: 8,
+                background: "rgba(255,82,82,0.10)",
+                color: "#fecaca",
+                padding: "10px 12px",
+                fontSize: 13,
+                fontWeight: 800,
+              }}
+            >
+              {authError}
+            </div>
+          )}
 
           <Button type="submit" fullWidth disabled={loading}>
             {loading ? <Loader label="Ingresando..." /> : "Ingresar"}
