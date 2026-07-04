@@ -14,6 +14,7 @@ MODULE_CHOICES = (
     ("activities", "Actividades"),
     ("space_activities", "Designacion de actividades"),
     ("users", "Usuarios y roles"),
+    ("audit", "Auditoria"),
 )
 
 DEFAULT_CLIENT_MODULES = ["availability", "reservations"]

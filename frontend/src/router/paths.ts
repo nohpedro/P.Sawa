@@ -10,6 +10,7 @@ export const PATHS = {
   customers: "/admin/clientes",
   customerDetail: "/admin/clientes/:id",
   usersRoles: "/admin/usuarios-roles",
+  audit: "/admin/auditoria",
   reservations: "/reservas",
   reservationHistory: "/historial-reservas",
 

@@ -18,6 +18,7 @@ import {
   FiLayers,
   FiMap,
   FiShield,
+  FiFileText,
   FiUsers,
 } from "react-icons/fi";
 
@@ -47,6 +48,7 @@ export default function AuthLayout() {
           ? [{ label: "Designacion de actividades", to: PATHS.adminEspacioActividad, icon: FiCalendar }]
           : []),
         ...(can("users") ? [{ label: "Usuarios y roles", to: PATHS.usersRoles, icon: FiShield }] : []),
+        ...(can("audit") ? [{ label: "Auditoria", to: PATHS.audit, icon: FiFileText }] : []),
       ],
     },
     {

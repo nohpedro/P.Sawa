@@ -8,6 +8,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from auth_vap.authentication import AccessTokenAuthentication
+from audit.utils import AuditLogMixin
 from common_vap.permissions import HasModuleAccess, IsAdminOrReadOnly
 from .models import (
     TipoActividad,
@@ -43,7 +44,8 @@ BACKENDS = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)
         "Permite listar, crear (solo admin), obtener, actualizar y eliminar."
     ),
 )
-class TipoActividadViewSet(viewsets.ModelViewSet):
+class TipoActividadViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    audit_module = "activities"
     required_module = "activities"
     read_modules = ("activities", "reservations", "history", "space_activities")
     queryset = TipoActividad.objects.all()
@@ -55,6 +57,16 @@ class TipoActividadViewSet(viewsets.ModelViewSet):
     ordering_fields = ("nombre", "created_at")
     filterset_fields = ("activo",)
 
+    def get_audit_summary(self, instance):
+        return f"actividad {instance.nombre}"
+
+    def get_audit_field_labels(self):
+        return {
+            "nombre": "Nombre",
+            "descripcion": "Descripcion",
+            "activo": "Estado",
+        }
+
 
 @extend_schema(
     tags=["Espacios"],
@@ -64,7 +76,8 @@ class TipoActividadViewSet(viewsets.ModelViewSet):
         "calculado según el estado operativo y reservas vigentes."
     ),
 )
-class EspacioViewSet(viewsets.ModelViewSet):
+class EspacioViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    audit_module = "spaces"
     required_module = "spaces"
     read_modules = ("spaces", "availability", "reservations", "history", "space_activities")
     queryset = (
@@ -80,12 +93,26 @@ class EspacioViewSet(viewsets.ModelViewSet):
     ordering_fields = ("nombre", "capacidad", "created_at")
     filterset_fields = ("estado_operativo", "capacidad")
 
+    def get_audit_summary(self, instance):
+        return f"espacio {instance.nombre}"
+
+    def get_audit_field_labels(self):
+        return {
+            "nombre": "Nombre",
+            "descripcion": "Descripcion",
+            "capacidad": "Capacidad",
+            "estado_operativo": "Estado operativo",
+            "ubicacion": "Ubicacion",
+            "tags": "Etiquetas",
+        }
+
 
 @extend_schema(
     tags=["Espacios - Actividades por Espacio"],
     description="CRUD de relaciones Espacio-Actividad (duración y precio base por actividad en un espacio).",
 )
-class EspacioActividadViewSet(viewsets.ModelViewSet):
+class EspacioActividadViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    audit_module = "space_activities"
     required_module = "space_activities"
     read_modules = ("space_activities", "reservations", "history")
     queryset = EspacioActividad.objects.select_related("espacio", "tipo")
@@ -96,6 +123,18 @@ class EspacioActividadViewSet(viewsets.ModelViewSet):
     search_fields = ("espacio__nombre", "tipo__nombre")
     ordering_fields = ("duracion_minutos", "precio_base", "created_at")
     filterset_fields = ("activo", "espacio", "tipo")
+
+    def get_audit_summary(self, instance):
+        return f"{instance.espacio} con actividad {instance.tipo}"
+
+    def get_audit_field_labels(self):
+        return {
+            "espacio": "Espacio",
+            "tipo": "Actividad",
+            "duracion_minutos": "Duracion",
+            "precio_base": "Precio base",
+            "activo": "Estado",
+        }
 
 
 @extend_schema(
@@ -237,7 +276,8 @@ class PromocionViewSet(viewsets.ModelViewSet):
         ),
     ],
 )
-class ReservaViewSet(viewsets.ModelViewSet):
+class ReservaViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    audit_module = "reservations"
     required_module = "reservations"
     read_modules = ("reservations", "history")
     queryset = Reserva.objects.select_related("espacio", "usuario", "cliente", "actividad")
@@ -248,7 +288,25 @@ class ReservaViewSet(viewsets.ModelViewSet):
 
     search_fields = ("espacio__nombre", "notas", "usuario__username")
     ordering_fields = ("inicio", "fin", "created_at")
-    filterset_fields = ("espacio", "estado_reserva")
+    filterset_fields = ("espacio", "estado_reserva", "actividad", "cliente", "usuario")
+
+    def get_audit_summary(self, instance):
+        cliente = getattr(instance.cliente, "__str__", None)
+        cliente_label = str(instance.cliente) if cliente else instance.usuario.get_username()
+        inicio = timezone.localtime(instance.inicio).strftime("%d/%m/%Y %H:%M") if instance.inicio else ""
+        return f"reserva de {cliente_label} en {instance.espacio} para {instance.actividad} ({inicio})"
+
+    def get_audit_field_labels(self):
+        return {
+            "espacio": "Espacio",
+            "usuario": "Usuario",
+            "cliente": "Cliente",
+            "actividad": "Actividad",
+            "inicio": "Inicio",
+            "fin": "Fin",
+            "estado_reserva": "Estado de reserva",
+            "notas": "Notas",
+        }
 
     def get_queryset(self):
         qs = super().get_queryset()

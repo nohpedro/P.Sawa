@@ -7,6 +7,7 @@ export const MODULES = [
   { key: "activities", label: "Actividades" },
   { key: "space_activities", label: "Designacion de actividades" },
   { key: "users", label: "Usuarios y roles" },
+  { key: "audit", label: "Auditoria" },
 ] as const;
 
 export type ModuleKey = (typeof MODULES)[number]["key"];

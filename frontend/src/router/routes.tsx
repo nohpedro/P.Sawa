@@ -19,6 +19,7 @@ import CustomerDetailPage from "../pages/Customers/CustomerDetailPage.tsx";
 import ReservationsPage from "../pages/Reservations/ReservationsPage.tsx";
 import ReservationHistoryPage from "../pages/Reservations/ReservationHistoryPage.tsx";
 import UserRolesPage from "../pages/Admin/UserRolesPage.tsx";
+import AuditPage from "../pages/Admin/AuditPage.tsx";
 
 export const routes = [
   {
@@ -50,6 +51,7 @@ export const routes = [
           { element: <ModuleRoute module="reservations" />, children: [{ path: PATHS.reservations, element: <ReservationsPage /> }] },
           { element: <ModuleRoute module="history" />, children: [{ path: PATHS.reservationHistory, element: <ReservationHistoryPage /> }] },
           { element: <ModuleRoute module="users" />, children: [{ path: PATHS.usersRoles, element: <UserRolesPage /> }] },
+          { element: <ModuleRoute module="audit" />, children: [{ path: PATHS.audit, element: <AuditPage /> }] },
         ],
       },
     ],

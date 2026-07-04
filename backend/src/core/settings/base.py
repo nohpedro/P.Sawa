@@ -33,6 +33,7 @@ INSTALLED_APPS = [
     "users",
     "auth_vap",
     "espacios",
+    "audit",
 ]
 
 # === Middleware ===
