@@ -23,18 +23,25 @@ export class AuthService {
    * Guarda access token en localStorage para que RequestHandler lo use en _getAuthHeader()
    */
   async login(payload: LoginRequest): Promise<LoginResponse> {
-    const data = (await this.request.postRequest(
-      AUTH_ENDPOINTS.login,
-      payload
-    )) as LoginResponse;
+    this.clearSession();
 
-    if (!data?.access || !data?.user) {
-      throw new Error("Respuesta de Login inválida: se esperaba { access, user }");
+    try {
+      const data = (await this.request.postRequest(
+        AUTH_ENDPOINTS.login,
+        payload
+      )) as LoginResponse;
+
+      if (!data?.access || !data?.user) {
+        throw new Error("Respuesta de Login inválida: se esperaba { access, user }");
+      }
+
+      localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
+      localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+      return data;
+    } catch (error) {
+      this.clearSession();
+      throw error;
     }
-
-    localStorage.setItem(ACCESS_TOKEN_KEY, data.access);
-    localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-    return data;
   }
 
   /**

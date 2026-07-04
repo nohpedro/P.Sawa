@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refreshFromStorage]);
 
   const login = useCallback(async (payload: LoginRequest) => {
-    setState((s) => ({ ...s, loading: true }));
+    setState((s) => ({ ...s, loading: false }));
 
     try {
       const data = await authService.login(payload);
@@ -53,6 +53,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return data;
     } catch (err) {
       // Si falla, deja estado consistente
+      authService.clearSession();
       setState({
         isAuthenticated: false,
         user: null,
