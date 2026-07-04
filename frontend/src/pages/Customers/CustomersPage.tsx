@@ -26,6 +26,8 @@ const badgeStyle: CSSProperties = {
   fontWeight: 900,
 };
 
+const PAGE_SIZE = 5;
+
 function displayName(cliente: Cliente): string {
   const fullName = `${cliente.nombre ?? ""} ${cliente.apellido ?? ""}`.trim();
   return fullName || cliente.username || "Cliente";
@@ -44,12 +46,12 @@ export default function CustomersPage() {
   const [selected, setSelected] = useState<Cliente | null>(null);
 
   useEffect(() => {
-    clientes.list({ page: String(page) }).catch(() => {});
+    clientes.list({ page: String(page), page_size: String(PAGE_SIZE) }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page]);
 
   const refresh = async () => {
-    const res = await clientes.list({ page: String(page) });
+    const res = await clientes.list({ page: String(page), page_size: String(PAGE_SIZE) });
     if (selected?.id) {
       setSelected(res.results?.find((cliente: Cliente) => cliente.id === selected.id) ?? null);
     }
@@ -69,6 +71,9 @@ export default function CustomersPage() {
 
   const withPhone = useMemo(() => list.filter((cliente) => cliente.telefono?.trim()).length, [list]);
   const withDocument = useMemo(() => list.filter((cliente) => cliente.documento?.trim()).length, [list]);
+  const total = clientes.data?.count ?? 0;
+  const pageStart = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = Math.min(pageStart + filtered.length - 1, total);
 
   const openDetail = (cliente: Cliente) => {
     navigate(`${PATHS.customers}/${cliente.id}`);
@@ -86,9 +91,9 @@ export default function CustomersPage() {
         }
       >
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <span style={badgeStyle}>Total: {clientes.data?.count ?? 0}</span>
+          <span style={badgeStyle}>Total: {total}</span>
           <span style={badgeStyle}>Pagina: {page}</span>
-          <span style={badgeStyle}>Mostrando: {filtered.length}</span>
+          <span style={badgeStyle}>Mostrando: {pageStart}-{pageEnd}</span>
           <span style={badgeStyle}>Con telefono: {withPhone}</span>
           <span style={badgeStyle}>Con documento: {withDocument}</span>
         </div>
@@ -99,7 +104,8 @@ export default function CustomersPage() {
           loading={clientes.loading}
           onCreate={async (payload) => {
             const res = await clientes.create(payload);
-            await refresh();
+            setPage(1);
+            await clientes.list({ page: "1", page_size: String(PAGE_SIZE) });
             setSelected(res);
             return res;
           }}
@@ -111,13 +117,16 @@ export default function CustomersPage() {
               label="Buscar"
               placeholder="Nombre, telefono, documento o email..."
               value={query}
-              onChange={(e: ChangeEvent<HTMLInputElement>) => setQuery(e.target.value)}
+              onChange={(e: ChangeEvent<HTMLInputElement>) => {
+                setQuery(e.target.value);
+                setPage(1);
+              }}
             />
 
             {clientes.loading && <Loader label="Cargando clientes..." />}
             {clientes.error && <div style={{ color: "#ff5252", fontSize: 13 }}>{clientes.error}</div>}
 
-            <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 660, overflow: "auto" }}>
+            <div style={{ ...panelStyle, display: "grid", gap: 10, minHeight: 474 }}>
               {filtered.map((cliente) => {
                 const active = selected?.id === cliente.id;
 
@@ -160,7 +169,10 @@ export default function CustomersPage() {
               )}
             </div>
 
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+            <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center" }}>
+              <span style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
+                {total === 0 ? "Sin clientes" : `Clientes ${pageStart}-${pageEnd} de ${total}`}
+              </span>
               <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={page <= 1 || clientes.loading}>
                 Anterior
               </Button>

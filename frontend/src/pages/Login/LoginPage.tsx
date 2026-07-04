@@ -3,7 +3,6 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
-import Toast from "../../components/ui/Toast";
 import { useAuth } from "../../hooks/useAuth";
 import { PATHS } from "../../router/paths";
 import AuthErrorModal from "./AuthErrorModal";
@@ -67,15 +66,6 @@ export default function LoginPage() {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const [toast, setToast] = useState<{
-    open: boolean;
-    message: string;
-    type: "info" | "success" | "error";
-  }>({
-    open: false,
-    message: "",
-    type: "info",
-  });
 
   useEffect(() => {
     console.log("[LOGIN][authModal changed]", authModal);
@@ -156,13 +146,6 @@ export default function LoginPage() {
 
     if (!validate()) {
       console.warn("[LOGIN][onSubmit] Validación fallida");
-
-      setToast({
-        open: true,
-        message: "Revisa los campos marcados.",
-        type: "error",
-      });
-
       console.groupEnd();
       return;
     }
@@ -185,13 +168,6 @@ export default function LoginPage() {
       }
 
       console.log("[LOGIN][onSubmit] Login exitoso. Navegando a:", redirectTo);
-
-      setToast({
-        open: true,
-        message: "Sesión iniciada.",
-        type: "success",
-      });
-
       navigate(redirectTo, { replace: true });
     } catch (error) {
       console.error("[LOGIN][onSubmit] Error capturado:", error);
@@ -201,13 +177,6 @@ export default function LoginPage() {
       console.log("[LOGIN][onSubmit] Mensaje para modal:", message);
 
       openAuthModal(message);
-
-      setToast({
-        open: true,
-        message,
-        type: "error",
-      });
-
       window.setTimeout(() => {
         const modal = document.querySelector("[data-auth-error-modal='true']");
         console.log("[LOGIN][onSubmit] Modal existe en DOM:", Boolean(modal), modal);
@@ -251,25 +220,10 @@ export default function LoginPage() {
 
             <SportLoginButton isSubmitting={isSubmitting} disabled={loading} />
 
-            {import.meta.env.DEV ? (
-              <button
-                type="button"
-                className="login-debug-modal-button"
-                onClick={() => openAuthModal("Prueba visual del modal.")}
-              >
-                Probar modal
-              </button>
-            ) : null}
           </form>
         </Card>
       </div>
 
-      <Toast
-        open={toast.open}
-        message={toast.message}
-        type={toast.type}
-        onClose={() => setToast((t) => ({ ...t, open: false }))}
-      />
 
       <AuthErrorModal
         open={authModal.open}

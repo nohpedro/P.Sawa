@@ -8,7 +8,7 @@ import ModuleRoute from "./guards/ModuleRoute";
 import PublicLayout from "../layouts/PublicLayout";
 import AuthLayout from "../layouts/AuthLayout";
 
-import {LoginPage} from "../pages/Login/LoginPage";
+import LoginPage from "../pages/Login/LoginPage";
 import AvailabilityPage from "../pages/Availability/AvailabilityPage";
 
 import SpacesPage from "../pages/Admin/SpacesPage";

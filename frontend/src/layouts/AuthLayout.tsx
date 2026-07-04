@@ -6,6 +6,7 @@ import Sidebar from "../components/navigation/Sidebar";
 import type { SidebarSection } from "../components/navigation/sidebar.types";
 
 import Breadcrumbs from "../components/navigation/Breadcrumbs";
+import Header from "../components/navigation/Header";
 import Button from "../components/ui/Button";
 import { hasModule, type ModuleKey } from "../models/modules";
 
@@ -72,28 +73,18 @@ export default function AuthLayout() {
         background: "var(--color-bg)",
       }}
     >
-      <header
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          padding: "0 16px",
-          borderBottom: "1px solid var(--color-border)",
-          background: "var(--color-surface)",
-          color: "var(--color-text)",
-        }}
-      >
-        <div style={{ fontWeight: 900, letterSpacing: 1 }}>PROY VOLLEY</div>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <span style={{ opacity: 0.85 }}>
-            {user?.username} {user?.role ? `/${user.role}` : ""}
-          </span>
-          <Button variant="danger" onClick={onLogout}>
-            Salir
-          </Button>
-        </div>
-      </header>
+      <Header
+        rightSlot={
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <span style={{ opacity: 0.85 }}>
+              {user?.username} {user?.role ? `/${user.role}` : ""}
+            </span>
+            <Button variant="danger" onClick={onLogout}>
+              Salir
+            </Button>
+          </div>
+        }
+      />
 
       <div style={{ display: "grid", gridTemplateColumns: "auto 1fr" }}>
         <Sidebar sections={sidebarSections} />

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
@@ -170,7 +171,7 @@ export default function SpacesPage() {
         </div>
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 380px) minmax(360px, 1fr) minmax(300px, 420px)", gap: 18, alignItems: "start" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(360px, 1fr))", gap: 22, alignItems: "start" }}>
         <Card title="Nuevo espacio" subtitle="Registra el espacio con datos basicos.">
           <div style={{ display: "grid", gap: 12 }}>
             <Input
@@ -279,12 +280,54 @@ export default function SpacesPage() {
           </div>
         </Card>
 
-        <Card title="Editar espacio" subtitle={selected ? "Ajusta datos y guarda cambios." : "Selecciona un espacio del listado."}>
-          {!selected ? (
-            <div style={{ ...panelStyle, color: "var(--color-text-muted)", fontSize: 13 }}>
-              No hay espacio seleccionado.
+      </div>
+
+      {selected && createPortal(
+        <div
+          role="presentation"
+          onClick={() => setSelected(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1200,
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            background: "rgba(5, 8, 15, 0.72)",
+            backdropFilter: "blur(3px)",
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="space-edit-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(720px, 100%)",
+              maxHeight: "88vh",
+              overflow: "auto",
+              border: "1px solid rgba(255,210,74,0.28)",
+              borderRadius: 10,
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+              padding: 18,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 16 }}>
+              <div>
+                <h2 id="space-edit-title" style={{ margin: 0, fontSize: 20, fontWeight: 950 }}>
+                  Editar espacio
+                </h2>
+                <div style={{ color: "var(--color-text-muted)", fontSize: 13, marginTop: 4 }}>
+                  Ajusta datos y disponibilidad de {selected.nombre}.
+                </div>
+              </div>
+              <Button variant="ghost" onClick={() => setSelected(null)} disabled={loading}>
+                Cerrar
+              </Button>
             </div>
-          ) : (
+
             <div style={{ display: "grid", gap: 12 }}>
               <div style={panelStyle}>
                 <div style={{ fontSize: 12, color: "var(--color-text-muted)", fontWeight: 800 }}>Editando</div>
@@ -349,9 +392,10 @@ export default function SpacesPage() {
                 Eliminar espacio
               </Button>
             </div>
-          )}
-        </Card>
-      </div>
+          </section>
+        </div>,
+        document.body
+      )}
 
       {error && <div style={{ color: "#ff5252", fontSize: 13 }}>{error}</div>}
 
