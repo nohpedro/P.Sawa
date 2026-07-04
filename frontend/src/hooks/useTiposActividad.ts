@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import tiposActividadService from "../services/tiposActividad.service";
 import type { TipoActividad } from "../models/actividad";
 import type { PaginatedResponse } from "../models/pagination";
+import { getErrorMessage } from "../utils/error";
 
 export function useTiposActividad() {
   const [data, setData] = useState<PaginatedResponse<TipoActividad> | null>(null);
@@ -17,7 +18,7 @@ export function useTiposActividad() {
       setData(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al listar tipos de actividad");
+      setError(getErrorMessage(e, "Error al listar tipos de actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -32,7 +33,7 @@ export function useTiposActividad() {
       setCurrent(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al obtener tipo de actividad");
+      setError(getErrorMessage(e, "Error al obtener tipo de actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -46,7 +47,7 @@ export function useTiposActividad() {
       const res = await tiposActividadService.create(payload);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al crear tipo de actividad");
+      setError(getErrorMessage(e, "Error al crear tipo de actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -61,7 +62,7 @@ export function useTiposActividad() {
       setCurrent(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al actualizar tipo de actividad");
+      setError(getErrorMessage(e, "Error al actualizar tipo de actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -76,7 +77,7 @@ export function useTiposActividad() {
       setCurrent(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al editar tipo de actividad");
+      setError(getErrorMessage(e, "Error al editar tipo de actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -89,7 +90,7 @@ export function useTiposActividad() {
     try {
       await tiposActividadService.remove(id);
     } catch (e: any) {
-      setError(e?.message ?? "Error al eliminar tipo de actividad");
+      setError(getErrorMessage(e, "No se pudo eliminar la actividad."));
       throw e;
     } finally {
       setLoading(false);

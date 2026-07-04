@@ -7,6 +7,7 @@ import Toast from "../../components/ui/Toast";
 import MonthCalendar from "../../components/reservas/MonthCalendar";
 import FullScreenModal from "../../components/reservas/FullScreenModal";
 import ReservaForm from "../../components/reservas/ReservaForm";
+import ReservationConfirmation from "../../components/reservas/ReservationConfirmation";
 
 import { useReservas } from "../../hooks/useReservas";
 import { formatHHMM, toYYYYMMDD } from "../../utils/date";
@@ -22,6 +23,7 @@ export default function ReservationsPage() {
   const [selectedDay, setSelectedDay] = useState(today);
 
   const [modalOpen, setModalOpen] = useState(false);
+  const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [toast, setToast] = useState<ToastState>({ open: false, message: "", type: "info" });
 
   const loadDay = async (day: string) => {
@@ -47,20 +49,22 @@ export default function ReservationsPage() {
 
   const onSubmit = async (payload: ReservaWriteDTO) => {
     await reservas.create(payload);
-    setToast({ open: true, message: "Reserva creada.", type: "success" });
     setModalOpen(false);
+    setConfirmationOpen(true);
     await loadDay(selectedDay);
   };
 
   return (
     <div style={{ display: "grid", gap: 20 }}>
-      <Card title="Reservas" subtitle="Doble click en un día para crear una reserva.">
+      <Card title="Reservas" subtitle="Selecciona un día y crea reservas rapidamente.">
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <div style={{ fontSize: 13, opacity: 0.85 }}>
             Día seleccionado: <b>{selectedDay}</b> · Reservas: <b>{rows.length}</b>
           </div>
 
           <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+            <Button onClick={() => setModalOpen(true)}>+ Nueva reserva</Button>
+
             <Button
               variant="outline"
               onClick={() => setMonth((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
@@ -94,7 +98,7 @@ export default function ReservationsPage() {
       </Card>
 
       <div style={{ display: "grid", gap: 20, gridTemplateColumns: "520px 1fr", alignItems: "start" }}>
-        <Card title="Calendario" subtitle="Doble click para reservar.">
+        <Card title="Calendario" subtitle="Un click selecciona el día. Usa Nueva reserva para agendar.">
           <MonthCalendar
             month={month}
             selectedDay={selectedDay}
@@ -103,7 +107,7 @@ export default function ReservationsPage() {
           />
         </Card>
 
-        <Card title="Reservas del día" subtitle="Lista lista para muchos datos (scroll).">
+        <Card title="Reservas del día" subtitle="Agenda visible del día seleccionado.">
           {reservas.loading && <Loader label="Cargando reservas..." />}
           {reservas.error && <div style={{ color: "#ff5252", fontSize: 13 }}>{reservas.error}</div>}
 
@@ -135,9 +139,6 @@ export default function ReservationsPage() {
             )}
           </div>
 
-          <div style={{ marginTop: 14, display: "flex", justifyContent: "flex-end" }}>
-            <Button onClick={() => setModalOpen(true)}>+ Nueva reserva</Button>
-          </div>
         </Card>
       </div>
 
@@ -156,6 +157,8 @@ export default function ReservationsPage() {
         type={toast.type}
         onClose={() => setToast((t) => ({ ...t, open: false }))}
       />
+
+      <ReservationConfirmation open={confirmationOpen} onClose={() => setConfirmationOpen(false)} />
     </div>
   );
 }

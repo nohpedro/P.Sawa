@@ -1,10 +1,16 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
+import Select from "../../components/ui/Select";
 import Button from "../../components/ui/Button";
 import Loader from "../../components/ui/Loader";
 import { useReservas } from "../../hooks/useReservas";
 import { formatHHMM, toYYYYMMDD } from "../../utils/date";
+import type { Reserva } from "../../models/reserva";
+
+type Option = { label: string; value: string };
+type MetricRow = { label: string; value: number; detail?: string };
 
 const panelStyle: CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -36,15 +42,311 @@ function csvCell(value: unknown): string {
   return `"${clean.replace(/"/g, '""')}"`;
 }
 
+function clienteName(reserva: Reserva): string {
+  return `${reserva.cliente_nombre ?? ""} ${reserva.cliente_apellido ?? ""}`.trim() || reserva.usuario_username || "-";
+}
+
+function reservaDate(reserva: Reserva): string {
+  return reserva.inicio.slice(0, 10);
+}
+
+function optionKey(label: string, fallback: string): string {
+  return label.trim() || fallback;
+}
+
+function uniqueOptions(rows: Reserva[], getValue: (row: Reserva) => string, getLabel: (row: Reserva) => string): Option[] {
+  const seen = new Map<string, string>();
+  rows.forEach((row) => {
+    const value = getValue(row);
+    if (!value || seen.has(value)) return;
+    seen.set(value, getLabel(row));
+  });
+
+  return Array.from(seen.entries())
+    .map(([value, label]) => ({ value, label }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function groupCount(rows: Reserva[], getLabel: (row: Reserva) => string): MetricRow[] {
+  const count = new Map<string, number>();
+  rows.forEach((row) => {
+    const label = getLabel(row);
+    count.set(label, (count.get(label) ?? 0) + 1);
+  });
+
+  return Array.from(count.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+function groupMoneyByDay(rows: Reserva[]): MetricRow[] {
+  const count = new Map<string, number>();
+  rows.forEach((row) => {
+    const day = reservaDate(row);
+    count.set(day, (count.get(day) ?? 0) + money(row.monto_estimado));
+  });
+
+  return Array.from(count.entries())
+    .map(([label, value]) => ({ label, value, detail: `Bs ${value.toFixed(2)}` }))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function ActivityBarChart({ rows }: { rows: MetricRow[] }) {
+  const visible = rows.slice(0, 10);
+  const total = visible.reduce((sum, row) => sum + row.value, 0);
+  const max = Math.max(1, ...visible.map((row) => row.value));
+
+  return (
+    <section style={{ ...panelStyle, display: "grid", gap: 14, background: "#0f1420" }}>
+      <div>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 950 }}>Reservas por actividad</h3>
+        <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>
+          Cantidad de reservas agrupadas por actividad.
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gap: 12 }}>
+        {visible.map((row) => {
+          const width = Math.max(6, (row.value / max) * 100);
+          const percent = total ? Math.round((row.value / total) * 100) : 0;
+          return (
+            <div key={row.label} style={{ display: "grid", gridTemplateColumns: "minmax(120px, 210px) 1fr auto", gap: 12, alignItems: "center" }}>
+              <div style={{ fontSize: 13, fontWeight: 900, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {row.label}
+              </div>
+              <div style={{ height: 30, borderRadius: 8, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${width}%`,
+                    height: "100%",
+                    borderRadius: 8,
+                    background: "linear-gradient(90deg, #ffd24a, #8ee59f)",
+                    boxShadow: "0 8px 20px rgba(255,210,74,0.14)",
+                  }}
+                />
+              </div>
+              <div style={{ color: "#ffd24a", fontSize: 13, fontWeight: 950, whiteSpace: "nowrap" }}>
+                {row.value} ({percent}%)
+              </div>
+            </div>
+          );
+        })}
+
+        {visible.length === 0 && (
+          <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No hay actividades para graficar.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function MoneyByDayChart({ rows }: { rows: MetricRow[] }) {
+  const visible = rows.slice(-14);
+  const max = Math.max(1, ...visible.map((row) => row.value));
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+
+  return (
+    <section style={{ ...panelStyle, display: "grid", gap: 14, background: "#0f1420" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "start", flexWrap: "wrap" }}>
+        <div>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 950 }}>Monto por dia</h3>
+          <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>
+            Ingresos estimados por fecha segun las reservas filtradas.
+          </div>
+        </div>
+        <div style={{ color: "#ffd24a", fontSize: 22, fontWeight: 950 }}>Bs {total.toFixed(2)}</div>
+      </div>
+
+      <div
+        style={{
+          minHeight: 260,
+          display: "grid",
+          gridTemplateColumns: `repeat(${Math.max(1, visible.length)}, minmax(34px, 1fr))`,
+          gap: 10,
+          alignItems: "end",
+          border: "1px solid rgba(255,255,255,0.06)",
+          borderRadius: 10,
+          padding: "18px 14px 12px",
+          background:
+            "linear-gradient(0deg, rgba(255,255,255,0.04) 1px, transparent 1px), rgba(255,255,255,0.015)",
+          backgroundSize: "100% 52px",
+        }}
+      >
+        {visible.map((row) => {
+          const height = Math.max(8, (row.value / max) * 210);
+          return (
+            <div key={row.label} style={{ display: "grid", gap: 8, alignItems: "end", justifyItems: "center" }}>
+              <div style={{ color: "#ffd24a", fontSize: 11, fontWeight: 900, whiteSpace: "nowrap" }}>
+                Bs {row.value.toFixed(0)}
+              </div>
+              <div
+                title={`${row.label}: Bs ${row.value.toFixed(2)}`}
+                style={{
+                  width: "100%",
+                  maxWidth: 42,
+                  height,
+                  borderRadius: "9px 9px 4px 4px",
+                  background: "linear-gradient(180deg, #ffd24a, #8ee59f)",
+                  boxShadow: "0 12px 28px rgba(142,229,159,0.14)",
+                }}
+              />
+              <div style={{ color: "var(--color-text-muted)", fontSize: 11, fontWeight: 800, writingMode: visible.length > 8 ? "vertical-rl" : "horizontal-tb" }}>
+                {row.label.slice(5)}
+              </div>
+            </div>
+          );
+        })}
+
+        {visible.length === 0 && (
+          <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No hay montos para graficar.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function CompactHorizontalChart({
+  title,
+  subtitle,
+  rows,
+}: {
+  title: string;
+  subtitle: string;
+  rows: MetricRow[];
+}) {
+  const visible = rows.slice(0, 8);
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  const max = Math.max(1, ...visible.map((row) => row.value));
+
+  return (
+    <section style={{ ...panelStyle, display: "grid", gap: 12, background: "#0f1420" }}>
+      <div>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 950 }}>{title}</h3>
+        <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>{subtitle}</div>
+      </div>
+
+      <div style={{ display: "grid", gap: 10 }}>
+        {visible.map((row) => {
+          const percent = total ? Math.round((row.value / total) * 100) : 0;
+          return (
+            <div key={row.label} style={{ display: "grid", gap: 5 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12, fontWeight: 850 }}>
+                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.label}</span>
+                <span style={{ color: "#ffd24a", whiteSpace: "nowrap" }}>{row.value} ({percent}%)</span>
+              </div>
+              <div style={{ height: 12, borderRadius: 999, background: "rgba(255,255,255,0.06)", overflow: "hidden" }}>
+                <div
+                  style={{
+                    width: `${Math.max(5, (row.value / max) * 100)}%`,
+                    height: "100%",
+                    borderRadius: 999,
+                    background: "linear-gradient(90deg, #ffd24a, #8ee59f)",
+                  }}
+                />
+              </div>
+            </div>
+          );
+        })}
+
+        {visible.length === 0 && (
+          <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No hay datos para este grafico.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function StatusSummaryChart({ rows }: { rows: MetricRow[] }) {
+  const total = rows.reduce((sum, row) => sum + row.value, 0);
+  const colors = ["#8ee59f", "#ffd24a", "#93c5fd", "#ff8a8a", "#c4b5fd"];
+
+  return (
+    <section style={{ ...panelStyle, display: "grid", gap: 12, background: "#0f1420" }}>
+      <div>
+        <h3 style={{ margin: 0, fontSize: 16, fontWeight: 950 }}>Estado de reservas</h3>
+        <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>
+          Distribucion del estado dentro del resultado filtrado.
+        </div>
+      </div>
+
+      <div style={{ display: "flex", height: 32, borderRadius: 999, overflow: "hidden", background: "rgba(255,255,255,0.06)" }}>
+        {rows.map((row, index) => (
+          <div
+            key={row.label}
+            title={`${row.label}: ${row.value}`}
+            style={{
+              width: `${total ? (row.value / total) * 100 : 0}%`,
+              background: colors[index % colors.length],
+              minWidth: row.value > 0 ? 8 : 0,
+            }}
+          />
+        ))}
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))", gap: 8 }}>
+        {rows.map((row, index) => {
+          const percent = total ? Math.round((row.value / total) * 100) : 0;
+          return (
+            <div key={row.label} style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, fontWeight: 850 }}>
+              <span style={{ width: 10, height: 10, borderRadius: "50%", background: colors[index % colors.length] }} />
+              <span style={{ color: "var(--color-text-muted)" }}>{row.label}</span>
+              <span style={{ marginLeft: "auto", color: "#ffd24a" }}>{row.value} ({percent}%)</span>
+            </div>
+          );
+        })}
+
+        {rows.length === 0 && (
+          <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No hay estados para graficar.</div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+function FilterChips({ items }: { items: Array<{ label: string; value: string }> }) {
+  return (
+    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+      {items.map((item) => (
+        <span
+          key={`${item.label}-${item.value}`}
+          style={{
+            border: "1px solid rgba(255,210,74,0.24)",
+            borderRadius: 999,
+            background: "rgba(255,210,74,0.08)",
+            color: "var(--color-text)",
+            padding: "7px 10px",
+            fontSize: 12,
+            fontWeight: 850,
+          }}
+        >
+          <span style={{ color: "#ffd24a" }}>{item.label}:</span> {item.value}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 export default function ReservationHistoryPage() {
   const reservas = useReservas();
   const today = useMemo(() => new Date(), []);
   const [desde, setDesde] = useState(() => toYYYYMMDD(addDays(today, -30)));
   const [hasta, setHasta] = useState(() => toYYYYMMDD(today));
-  const [query, setQuery] = useState("");
+  const [espacio, setEspacio] = useState("");
+  const [actividad, setActividad] = useState("");
+  const [cliente, setCliente] = useState("");
+  const [estado, setEstado] = useState("");
+  const [chartsOpen, setChartsOpen] = useState(false);
 
   const load = async () => {
-    await reservas.list({ page: "1", desde, hasta });
+    await reservas.list({
+      page: "1",
+      page_size: "200",
+      desde,
+      hasta,
+      espacio: espacio || undefined,
+      actividad: actividad || undefined,
+    });
+    setChartsOpen(false);
   };
 
   useEffect(() => {
@@ -54,28 +356,89 @@ export default function ReservationHistoryPage() {
 
   const rows = useMemo(() => reservas.data?.results ?? [], [reservas.data?.results]);
 
+  const espacioOptions = useMemo(
+    () => [{ label: "Todos los espacios", value: "" }, ...uniqueOptions(rows, (row) => row.espacio, (row) => row.espacio_nombre ?? row.espacio)],
+    [rows]
+  );
+
+  const actividadOptions = useMemo(
+    () => [{ label: "Todas las actividades", value: "" }, ...uniqueOptions(rows, (row) => row.actividad, (row) => row.actividad_nombre ?? row.actividad)],
+    [rows]
+  );
+
+  const clienteOptions = useMemo(
+    () => [
+      { label: "Todos los clientes", value: "" },
+      ...uniqueOptions(rows, (row) => optionKey(clienteName(row), String(row.usuario)), clienteName),
+    ],
+    [rows]
+  );
+
+  const estadoOptions = useMemo(
+    () => [
+      { label: "Todos los estados", value: "" },
+      ...uniqueOptions(rows, (row) => row.estado_reserva, (row) => row.estado_reserva),
+    ],
+    [rows]
+  );
+
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    if (!q) return rows;
-    return rows.filter((reserva) =>
-      `${reserva.espacio_nombre} ${reserva.cliente_nombre} ${reserva.cliente_apellido} ${reserva.usuario_username} ${reserva.actividad_nombre} ${reserva.estado_reserva} ${reserva.notas}`
-        .toLowerCase()
-        .includes(q)
-    );
-  }, [query, rows]);
+    return rows.filter((reserva) => {
+      const day = reservaDate(reserva);
+      if (desde && day < desde) return false;
+      if (hasta && day > hasta) return false;
+      if (espacio && reserva.espacio !== espacio) return false;
+      if (actividad && reserva.actividad !== actividad) return false;
+      if (cliente && optionKey(clienteName(reserva), String(reserva.usuario)) !== cliente) return false;
+      if (estado && reserva.estado_reserva !== estado) return false;
+      return true;
+    });
+  }, [actividad, cliente, desde, espacio, estado, hasta, rows]);
 
   const totalMonto = useMemo(() => filtered.reduce((sum, reserva) => sum + money(reserva.monto_estimado), 0), [filtered]);
   const totalMinutos = useMemo(() => filtered.reduce((sum, reserva) => sum + (reserva.duracion_minutos ?? 0), 0), [filtered]);
+
+  const chartData = useMemo(
+    () => ({
+      byActivity: groupCount(filtered, (row) => row.actividad_nombre ?? row.actividad),
+      bySpace: groupCount(filtered, (row) => row.espacio_nombre ?? row.espacio),
+      byClient: groupCount(filtered, clienteName),
+      byStatus: groupCount(filtered, (row) => row.estado_reserva),
+      moneyByDay: groupMoneyByDay(filtered),
+    }),
+    [filtered]
+  );
+
+  const selectedFilterItems = useMemo(() => {
+    const findLabel = (options: Option[], value: string) => options.find((option) => option.value === value)?.label ?? "Todos";
+    return [
+      { label: "Desde", value: desde || "-" },
+      { label: "Hasta", value: hasta || "-" },
+      { label: "Espacio", value: findLabel(espacioOptions, espacio) },
+      { label: "Actividad", value: findLabel(actividadOptions, actividad) },
+      { label: "Cliente", value: findLabel(clienteOptions, cliente) },
+      { label: "Estado", value: findLabel(estadoOptions, estado) },
+    ];
+  }, [actividad, actividadOptions, cliente, clienteOptions, desde, espacio, espacioOptions, estado, estadoOptions, hasta]);
+
+  const resetFilters = () => {
+    setDesde(toYYYYMMDD(addDays(today, -30)));
+    setHasta(toYYYYMMDD(today));
+    setEspacio("");
+    setActividad("");
+    setCliente("");
+    setEstado("");
+    setChartsOpen(false);
+  };
 
   const downloadCsv = () => {
     const headers = ["Dia", "Cliente", "Espacio", "Actividad", "Inicio", "Fin", "Minutos", "Monto Bs", "Estado", "Notas"];
     const lines = [
       headers.map(csvCell).join(";"),
-      ...filtered.map((reserva) => {
-        const cliente = `${reserva.cliente_nombre ?? ""} ${reserva.cliente_apellido ?? ""}`.trim() || reserva.usuario_username || "";
-        return [
-          reserva.inicio.slice(0, 10),
-          cliente,
+      ...filtered.map((reserva) =>
+        [
+          reservaDate(reserva),
+          clienteName(reserva),
           reserva.espacio_nombre ?? reserva.espacio,
           reserva.actividad_nombre ?? reserva.actividad,
           formatHHMM(reserva.inicio),
@@ -84,8 +447,8 @@ export default function ReservationHistoryPage() {
           Number(reserva.monto_estimado ?? 0).toFixed(2),
           reserva.estado_reserva,
           reserva.notas ?? "",
-        ].map(csvCell).join(";");
-      }),
+        ].map(csvCell).join(";")
+      ),
     ];
 
     const blob = new Blob([`\uFEFF${lines.join("\r\n")}`], { type: "text/csv;charset=utf-8" });
@@ -107,8 +470,11 @@ export default function ReservationHistoryPage() {
             <Button variant="outline" onClick={downloadCsv} disabled={filtered.length === 0}>
               Descargar CSV
             </Button>
+            <Button onClick={() => setChartsOpen(true)} disabled={filtered.length === 0}>
+              Generar Graficos
+            </Button>
             <Button variant="outline" onClick={() => void load()} disabled={reservas.loading}>
-              Buscar
+              Aplicar filtros
             </Button>
           </div>
         }
@@ -121,13 +487,19 @@ export default function ReservationHistoryPage() {
         </div>
       </Card>
 
-      <Card title="Filtros" subtitle="Ajusta el rango y filtra por cliente, cancha, actividad o estado.">
-        <div style={{ display: "grid", gridTemplateColumns: "180px 180px minmax(220px, 1fr) auto", gap: 12, alignItems: "end" }}>
+      <Card title="Filtros" subtitle="Filtra por rango, espacio, actividad, cliente o estado.">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, alignItems: "end" }}>
           <Input label="Desde" type="date" value={desde} onChange={(e: ChangeEvent<HTMLInputElement>) => setDesde(e.target.value)} />
           <Input label="Hasta" type="date" value={hasta} onChange={(e: ChangeEvent<HTMLInputElement>) => setHasta(e.target.value)} />
-          <Input label="Buscar" placeholder="Cliente, espacio, actividad, estado..." value={query} onChange={(e) => setQuery(e.target.value)} />
+          <Select label="Espacio" options={espacioOptions} value={espacio} onChange={(e) => setEspacio(e.target.value)} />
+          <Select label="Actividad" options={actividadOptions} value={actividad} onChange={(e) => setActividad(e.target.value)} />
+          <Select label="Cliente" options={clienteOptions} value={cliente} onChange={(e) => setCliente(e.target.value)} />
+          <Select label="Estado" options={estadoOptions} value={estado} onChange={(e) => setEstado(e.target.value)} />
           <Button onClick={() => void load()} disabled={reservas.loading}>
             {reservas.loading ? <Loader label="Cargando..." /> : "Aplicar"}
+          </Button>
+          <Button variant="outline" onClick={resetFilters} disabled={reservas.loading}>
+            Limpiar
           </Button>
         </div>
       </Card>
@@ -151,10 +523,8 @@ export default function ReservationHistoryPage() {
 
           {filtered.map((reserva) => (
             <div key={reserva.id} className="fids-row">
-              <div className="fids-cell">{reserva.inicio.slice(0, 10)}</div>
-              <div className="fids-cell">
-                {`${reserva.cliente_nombre ?? ""} ${reserva.cliente_apellido ?? ""}`.trim() || reserva.usuario_username || "-"}
-              </div>
+              <div className="fids-cell">{reservaDate(reserva)}</div>
+              <div className="fids-cell">{clienteName(reserva)}</div>
               <div className="fids-cell">{reserva.espacio_nombre ?? reserva.espacio}</div>
               <div className="fids-cell">{reserva.actividad_nombre ?? reserva.actividad}</div>
               <div className="fids-cell">{formatHHMM(reserva.inicio)}</div>
@@ -166,10 +536,78 @@ export default function ReservationHistoryPage() {
           ))}
 
           {!reservas.loading && filtered.length === 0 && (
-            <div style={{ padding: 16, color: "var(--color-text-muted)" }}>No hay reservas en este rango.</div>
+            <div style={{ padding: 16, color: "var(--color-text-muted)" }}>No hay reservas con esos filtros.</div>
           )}
         </div>
       </Card>
+
+      {chartsOpen &&
+        createPortal(
+          <div
+            role="presentation"
+            onClick={() => setChartsOpen(false)}
+            style={{
+              position: "fixed",
+              inset: 0,
+              zIndex: 1300,
+              display: "grid",
+              placeItems: "center",
+              padding: 24,
+              background: "rgba(5, 8, 15, 0.78)",
+              backdropFilter: "blur(3px)",
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="history-charts-title"
+              onClick={(event) => event.stopPropagation()}
+              style={{
+                width: "min(1120px, 100%)",
+                maxHeight: "90vh",
+                overflow: "auto",
+                border: "1px solid rgba(255,210,74,0.28)",
+                borderRadius: 10,
+                background: "var(--color-surface)",
+                color: "var(--color-text)",
+                boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+                padding: 18,
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "start", marginBottom: 16 }}>
+                <div>
+                  <h2 id="history-charts-title" style={{ margin: 0, fontSize: 22, fontWeight: 950 }}>
+                    Graficos del historial
+                  </h2>
+                  <FilterChips items={selectedFilterItems} />
+                </div>
+                <Button variant="ghost" onClick={() => setChartsOpen(false)}>
+                  Cerrar
+                </Button>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 0.8fr", gap: 16, alignItems: "stretch" }}>
+                <MoneyByDayChart rows={chartData.moneyByDay} />
+                <ActivityBarChart rows={chartData.byActivity} />
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16, marginTop: 16 }}>
+                <CompactHorizontalChart
+                  title="Reservas por espacio"
+                  subtitle="Compara que espacios concentran mas reservas."
+                  rows={chartData.bySpace}
+                />
+                <CompactHorizontalChart
+                  title="Clientes con mas reservas"
+                  subtitle="Clientes con mayor actividad en el rango filtrado."
+                  rows={chartData.byClient}
+                />
+                <StatusSummaryChart rows={chartData.byStatus} />
+              </div>
+            </section>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

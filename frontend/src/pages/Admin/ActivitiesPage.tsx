@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ChangeEvent, type CSSProperties } from "react";
+import { createPortal } from "react-dom";
 import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
@@ -6,6 +7,7 @@ import Loader from "../../components/ui/Loader";
 import Toast from "../../components/ui/Toast";
 import { useTiposActividad } from "../../hooks/useTiposActividad";
 import type { TipoActividad } from "../../models/actividad";
+import { getErrorMessage } from "../../utils/error";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
 
@@ -24,12 +26,21 @@ const badgeStyle: CSSProperties = {
   fontWeight: 900,
 };
 
+function getActivityDeleteErrorMessage(error: unknown): string {
+  const message = getErrorMessage(error, "No se pudo eliminar la actividad.");
+  if (message.toLowerCase().includes("registro esta en uso")) {
+    return "No se puede eliminar esta actividad porque esta asignada a un espacio.";
+  }
+  return message;
+}
+
 export default function ActivitiesPage() {
   const { data, loading, error, list, create, patch, remove } = useTiposActividad();
 
   const [form, setForm] = useState({ nombre: "", descripcion: "", activo: true });
   const [selected, setSelected] = useState<TipoActividad | null>(null);
   const [editDraft, setEditDraft] = useState<TipoActividad | null>(null);
+  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [query, setQuery] = useState("");
   const [toast, setToast] = useState<ToastState>({ open: false, message: "", type: "info" });
 
@@ -60,41 +71,68 @@ export default function ActivitiesPage() {
     const nombre = form.nombre.trim();
     if (!nombre) return;
 
-    await create({ ...form, nombre, descripcion: form.descripcion.trim() });
-    setForm({ nombre: "", descripcion: "", activo: true });
-    setToast({ open: true, message: "Actividad creada.", type: "success" });
-    await refresh();
+    try {
+      await create({ ...form, nombre, descripcion: form.descripcion.trim() });
+      setForm({ nombre: "", descripcion: "", activo: true });
+      setModalMode(null);
+      setToast({ open: true, message: "Actividad creada.", type: "success" });
+      await refresh();
+    } catch (err) {
+      setToast({ open: true, message: getErrorMessage(err, "No se pudo crear la actividad."), type: "error" });
+    }
   };
 
   const onPick = (activity: TipoActividad) => {
     setSelected(activity);
     setEditDraft({ ...activity });
+    setModalMode("edit");
   };
 
   const onSave = async () => {
     if (!editDraft?.nombre.trim()) return;
 
-    await patch(editDraft.id, {
-      nombre: editDraft.nombre.trim(),
-      descripcion: editDraft.descripcion?.trim() ?? "",
-      activo: editDraft.activo,
-    });
+    try {
+      await patch(editDraft.id, {
+        nombre: editDraft.nombre.trim(),
+        descripcion: editDraft.descripcion?.trim() ?? "",
+        activo: editDraft.activo,
+      });
 
-    setToast({ open: true, message: "Actividad actualizada.", type: "success" });
-    await refresh();
+      setToast({ open: true, message: "Actividad actualizada.", type: "success" });
+      setModalMode(null);
+      await refresh();
+    } catch (err) {
+      setToast({ open: true, message: getErrorMessage(err, "No se pudo actualizar la actividad."), type: "error" });
+    }
   };
 
   const onDelete = async (id: string) => {
-    await remove(id);
-    if (selected?.id === id) {
-      setSelected(null);
-      setEditDraft(null);
+    setModalMode(null);
+    setSelected(null);
+    setEditDraft(null);
+
+    try {
+      await remove(id);
+      setToast({ open: true, message: "Actividad eliminada.", type: "success" });
+      await refresh();
+    } catch (err) {
+      setToast({ open: true, message: getActivityDeleteErrorMessage(err), type: "error" });
     }
-    setToast({ open: true, message: "Actividad eliminada.", type: "success" });
-    await refresh();
   };
 
   const onQueryChange = (evt: ChangeEvent<HTMLInputElement>) => setQuery(evt.target.value);
+
+  const openCreate = () => {
+    setForm({ nombre: "", descripcion: "", activo: true });
+    setSelected(null);
+    setEditDraft(null);
+    setModalMode("create");
+  };
+
+  const closeModal = () => {
+    setModalMode(null);
+    setEditDraft(null);
+  };
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -102,9 +140,12 @@ export default function ActivitiesPage() {
         title="Actividades"
         subtitle="Administra los deportes o servicios que luego se asignan a cada espacio."
         rightSlot={
-          <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
-            Refrescar
-          </Button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button onClick={openCreate}>+ Nueva actividad</Button>
+            <Button variant="outline" onClick={() => void refresh()} disabled={loading}>
+              Refrescar
+            </Button>
+          </div>
         }
       >
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -114,46 +155,14 @@ export default function ActivitiesPage() {
         </div>
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 400px) minmax(0, 1fr)", gap: 18, alignItems: "start" }}>
-        <Card title="Nueva actividad" subtitle="Crea una actividad con nombre claro y descripcion corta.">
-          <div style={{ display: "grid", gap: 14 }}>
-            <Input
-              label="Nombre"
-              placeholder="Ej: Futbol, Voley, Basquet"
-              value={form.nombre}
-              onChange={(evt) => setForm((s) => ({ ...s, nombre: evt.target.value }))}
-            />
-
-            <Input
-              label="Descripcion"
-              placeholder="Opcional"
-              value={form.descripcion}
-              onChange={(evt) => setForm((s) => ({ ...s, descripcion: evt.target.value }))}
-            />
-
-            <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
-              <input
-                type="checkbox"
-                checked={form.activo}
-                onChange={(evt) => setForm((s) => ({ ...s, activo: evt.target.checked }))}
-              />
-              <span style={{ fontSize: 13, fontWeight: 800 }}>Disponible para asignar a espacios</span>
-            </label>
-
-            <Button onClick={() => void onCreate()} disabled={loading || !form.nombre.trim()} fullWidth>
-              {loading ? <Loader label="Guardando..." /> : "Crear actividad"}
-            </Button>
-          </div>
-        </Card>
-
-        <Card title="Listado" subtitle="Busca, selecciona y edita una actividad sin cambiar de pantalla.">
+      <div style={{ display: "grid", gap: 18 }}>
+        <Card title="Listado" subtitle="Click o doble click sobre una actividad para editarla.">
           <div style={{ display: "grid", gap: 14 }}>
             <Input label="Buscar" placeholder="Nombre o descripcion..." value={query} onChange={onQueryChange} />
 
             {loading && <Loader label="Cargando actividades..." />}
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(280px, 1fr) minmax(280px, 420px)", gap: 14, alignItems: "start" }}>
-              <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 610, overflow: "auto" }}>
+            <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 610, overflow: "auto" }}>
                 {filtered.map((activity) => {
                   const active = selected?.id === activity.id;
                   return (
@@ -161,6 +170,7 @@ export default function ActivitiesPage() {
                       key={activity.id}
                       type="button"
                       onClick={() => onPick(activity)}
+                      onDoubleClick={() => onPick(activity)}
                       style={{
                         textAlign: "left",
                         border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
@@ -180,6 +190,18 @@ export default function ActivitiesPage() {
                       <div style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: 13, lineHeight: 1.35 }}>
                         {activity.descripcion || "Sin descripcion"}
                       </div>
+                      <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            onPick(activity);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                      </div>
                     </button>
                   );
                 })}
@@ -187,62 +209,131 @@ export default function ActivitiesPage() {
                 {!loading && filtered.length === 0 && (
                   <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No se encontraron actividades.</div>
                 )}
-              </div>
-
-              <div style={panelStyle}>
-                {!editDraft ? (
-                  <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>
-                    Selecciona una actividad para editarla.
-                  </div>
-                ) : (
-                  <div style={{ display: "grid", gap: 14 }}>
-                    <div>
-                      <div style={{ fontSize: 12, color: "var(--color-text-muted)", fontWeight: 800 }}>Editando</div>
-                      <div style={{ fontSize: 18, fontWeight: 950 }}>{editDraft.nombre}</div>
-                    </div>
-
-                    <Input
-                      label="Nombre"
-                      value={editDraft.nombre}
-                      onChange={(evt) => setEditDraft((s) => (s ? { ...s, nombre: evt.target.value } : s))}
-                    />
-
-                    <Input
-                      label="Descripcion"
-                      value={editDraft.descripcion ?? ""}
-                      onChange={(evt) => setEditDraft((s) => (s ? { ...s, descripcion: evt.target.value } : s))}
-                    />
-
-                    <label style={{ display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
-                      <input
-                        type="checkbox"
-                        checked={!!editDraft.activo}
-                        onChange={(evt) => setEditDraft((s) => (s ? { ...s, activo: evt.target.checked } : s))}
-                      />
-                      <span style={{ fontSize: 13, fontWeight: 800 }}>Actividad activa</span>
-                    </label>
-
-                    <div style={{ display: "flex", gap: 10 }}>
-                      <Button onClick={() => void onSave()} disabled={loading || !editDraft.nombre.trim()} fullWidth>
-                        {loading ? <Loader label="Guardando..." /> : "Guardar"}
-                      </Button>
-                      <Button variant="outline" onClick={() => setEditDraft(selected ? { ...selected } : null)} disabled={loading}>
-                        Deshacer
-                      </Button>
-                    </div>
-
-                    <Button variant="danger" onClick={() => void onDelete(editDraft.id)} disabled={loading}>
-                      Eliminar actividad
-                    </Button>
-                  </div>
-                )}
-              </div>
             </div>
 
             {error && <div style={{ color: "#ff5252", fontSize: 13 }}>{error}</div>}
           </div>
         </Card>
       </div>
+
+      {modalMode && createPortal(
+        <div
+          role="presentation"
+          onClick={closeModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1200,
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            background: "rgba(5, 8, 15, 0.72)",
+            backdropFilter: "blur(3px)",
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="activity-edit-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(640px, 100%)",
+              maxHeight: "88vh",
+              overflow: "auto",
+              border: "1px solid rgba(255,210,74,0.28)",
+              borderRadius: 10,
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+              padding: 18,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 16 }}>
+              <div>
+                <h2 id="activity-edit-title" style={{ margin: 0, fontSize: 20, fontWeight: 950 }}>
+                  {modalMode === "create" ? "Nueva actividad" : "Editar actividad"}
+                </h2>
+                <div style={{ color: "var(--color-text-muted)", fontSize: 13, marginTop: 4 }}>
+                  {modalMode === "create"
+                    ? "Crea una actividad con nombre claro y descripcion corta."
+                    : `Actualiza ${editDraft?.nombre ?? "la actividad seleccionada"}.`}
+                </div>
+              </div>
+              <Button variant="ghost" onClick={closeModal} disabled={loading}>
+                Cerrar
+              </Button>
+            </div>
+
+            <div style={{ display: "grid", gap: 14 }}>
+              {modalMode === "edit" && editDraft ? (
+                <div style={panelStyle}>
+                  <div style={{ fontSize: 12, color: "var(--color-text-muted)", fontWeight: 800 }}>Editando</div>
+                  <div style={{ fontSize: 18, fontWeight: 950 }}>{editDraft.nombre}</div>
+                </div>
+              ) : null}
+
+              <Input
+                label="Nombre"
+                placeholder="Ej: Futbol, Voley, Basquet"
+                value={modalMode === "create" ? form.nombre : editDraft?.nombre ?? ""}
+                onChange={(evt) =>
+                  modalMode === "create"
+                    ? setForm((s) => ({ ...s, nombre: evt.target.value }))
+                    : setEditDraft((s) => (s ? { ...s, nombre: evt.target.value } : s))
+                }
+              />
+
+              <Input
+                label="Descripcion"
+                placeholder="Opcional"
+                value={modalMode === "create" ? form.descripcion : editDraft?.descripcion ?? ""}
+                onChange={(evt) =>
+                  modalMode === "create"
+                    ? setForm((s) => ({ ...s, descripcion: evt.target.value }))
+                    : setEditDraft((s) => (s ? { ...s, descripcion: evt.target.value } : s))
+                }
+              />
+
+              <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center", cursor: "pointer" }}>
+                <input
+                  type="checkbox"
+                  checked={modalMode === "create" ? form.activo : !!editDraft?.activo}
+                  onChange={(evt) =>
+                    modalMode === "create"
+                      ? setForm((s) => ({ ...s, activo: evt.target.checked }))
+                      : setEditDraft((s) => (s ? { ...s, activo: evt.target.checked } : s))
+                  }
+                />
+                <span style={{ fontSize: 13, fontWeight: 800 }}>Disponible para asignar a espacios</span>
+              </label>
+
+              <div style={{ display: "flex", gap: 10 }}>
+                <Button
+                  onClick={() => void (modalMode === "create" ? onCreate() : onSave())}
+                  disabled={loading || (modalMode === "create" ? !form.nombre.trim() : !editDraft?.nombre.trim())}
+                  fullWidth
+                >
+                  {loading ? <Loader label="Guardando..." /> : modalMode === "create" ? "Crear actividad" : "Guardar"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => (modalMode === "edit" ? setEditDraft(selected ? { ...selected } : null) : closeModal())}
+                  disabled={loading}
+                >
+                  {modalMode === "edit" ? "Deshacer" : "Cerrar"}
+                </Button>
+              </div>
+
+              {modalMode === "edit" && editDraft ? (
+                <Button variant="danger" onClick={() => void onDelete(editDraft.id)} disabled={loading}>
+                  Eliminar actividad
+                </Button>
+              ) : null}
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
 
       <Toast
         open={toast.open}

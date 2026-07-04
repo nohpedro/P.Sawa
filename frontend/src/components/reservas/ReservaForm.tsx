@@ -47,6 +47,34 @@ function formatNumber(value: number): string {
   }).format(value);
 }
 
+function getEspacioEstadoReservaMeta(espacio: Espacio | null): {
+  disponible: boolean;
+  label: string;
+  message: string;
+} {
+  if (!espacio) {
+    return { disponible: true, label: "", message: "" };
+  }
+
+  if (espacio.estado_operativo === "MANTENIMIENTO") {
+    return {
+      disponible: false,
+      label: "Mantenimiento",
+      message: "Este espacio esta en mantenimiento. No es posible crear reservas hasta que vuelva a estar libre.",
+    };
+  }
+
+  if (espacio.estado_operativo === "FUERA_DE_SERVICIO") {
+    return {
+      disponible: false,
+      label: "Fuera de servicio",
+      message: "Este espacio esta fuera de servicio. Selecciona otro espacio disponible para reservar.",
+    };
+  }
+
+  return { disponible: true, label: "Libre", message: "" };
+}
+
 export default function ReservaForm({
   day,
   onSubmit,
@@ -81,6 +109,8 @@ export default function ReservaForm({
     return (espacios.data?.results ?? []).find((e) => e.id === espacioId) ?? null;
   }, [espacios.data, espacioId]);
 
+  const espacioEstadoReserva = useMemo(() => getEspacioEstadoReservaMeta(espacioObj), [espacioObj]);
+
   useEffect(() => {
     if (!espacioId) return;
     ea.list({ page: "1", espacio: espacioId }).catch(() => {});
@@ -96,7 +126,13 @@ export default function ReservaForm({
 
   const espacioOptions = useMemo(() => {
     const res = espacios.data?.results ?? [];
-    return [{ label: "Selecciona espacio...", value: "" }, ...res.map((e) => ({ label: e.nombre, value: e.id }))];
+    return [
+      { label: "Selecciona espacio...", value: "" },
+      ...res.map((e) => {
+        const estado = getEspacioEstadoReservaMeta(e);
+        return { label: `${e.nombre} - ${estado.label}`, value: e.id };
+      }),
+    ];
   }, [espacios.data]);
 
   const actividadOptions = useMemo(() => {
@@ -144,6 +180,7 @@ export default function ReservaForm({
   const canSubmit =
     !!clienteId &&
     !!espacioId &&
+    espacioEstadoReserva.disponible &&
     !!actividadId &&
     actividadValida &&
     new Date(finISO).getTime() > new Date(inicioISO).getTime();
@@ -156,8 +193,18 @@ export default function ReservaForm({
       return;
     }
 
-    if (!espacioId || !actividadId) {
-      setUiError("Selecciona un espacio y una actividad.");
+    if (!espacioId) {
+      setUiError("Selecciona un espacio.");
+      return;
+    }
+
+    if (!espacioEstadoReserva.disponible) {
+      setUiError(espacioEstadoReserva.message);
+      return;
+    }
+
+    if (!actividadId) {
+      setUiError("Selecciona una actividad.");
       return;
     }
 
@@ -208,6 +255,8 @@ export default function ReservaForm({
   };
 
   const clientesList = clientes.data?.results ?? [];
+  const totalLabel = `Bs ${formatNumber(costo.total)}`;
+  const durationLabel = `${costo.minutos} min`;
 
   return (
     <div style={{ display: "grid", gap: 16, color: "#f8fafc" }}>
@@ -265,8 +314,24 @@ export default function ReservaForm({
             options={actividadOptions}
             value={actividadId}
             onChange={(e) => setActividadId(e.target.value)}
-            disabled={!espacioId}
+            disabled={!espacioId || !espacioEstadoReserva.disponible}
           />
+
+          {!espacioEstadoReserva.disponible && (
+            <div
+              style={{
+                padding: 10,
+                borderRadius: 8,
+                border: "1px solid #ffd24a",
+                color: "#fde68a",
+                background: "#3a2f0a",
+                fontWeight: 850,
+                lineHeight: 1.35,
+              }}
+            >
+              {espacioEstadoReserva.message}
+            </div>
+          )}
 
           {!actividadValida && (
             <div style={{ padding: 10, borderRadius: 8, border: "1px solid #ff5252", color: "#fecaca", background: "#3f1111", fontWeight: 800 }}>
@@ -282,36 +347,47 @@ export default function ReservaForm({
             finHHMM={finHHMM}
             onFinChange={setFinHHMM}
             minuteStep={5}
-            disabled={!espacioId || !actividadId}
+            disabled={!espacioId || !actividadId || !espacioEstadoReserva.disponible}
           />
 
           <Input label="Notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional" />
 
-          <div style={{ border: "1px solid #263244", borderRadius: 10, padding: 14, background: "#0b1220", color: "#f8fafc" }}>
-            <div style={{ fontWeight: 950, marginBottom: 6, color: "#ffd24a" }}>Costo estimado</div>
+          <div
+            style={{
+              border: "1px solid rgba(255,210,74,0.55)",
+              borderRadius: 12,
+              padding: 16,
+              background: "linear-gradient(135deg, rgba(255,210,74,0.18), rgba(15,23,42,0.96) 44%)",
+              color: "#f8fafc",
+              boxShadow: "0 14px 34px rgba(255,210,74,0.08)",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+              <div>
+                <div style={{ color: "#ffd24a", fontSize: 12, fontWeight: 950, textTransform: "uppercase" }}>
+                  Total calculado
+                </div>
+                <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginTop: 4 }}>
+                  Duracion: {durationLabel}
+                </div>
+              </div>
 
-            {costo.mode === "bloques" ? (
-              <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.4 }}>
-                <div>
-                  Duracion: <b>{costo.minutos} min</b> / Base: <b>{costo.baseMin} min/bloque</b> / Bloques usados: <b>{formatNumber(costo.bloques)}</b>
-                </div>
-                <div>
-                  Precio: <b>Bs {costo.precioRef}</b> por bloque / Total: <b>Bs {costo.total}</b>
-                </div>
+              <div style={{ fontSize: 32, lineHeight: 1, fontWeight: 950, color: "#ffd24a", whiteSpace: "nowrap" }}>
+                {totalLabel}
               </div>
-            ) : (
-              <div style={{ fontSize: 13, color: "#cbd5e1", lineHeight: 1.4 }}>
-                <div>
-                  Duracion: <b>{costo.minutos} min</b> / Horas: <b>{costo.horas.toFixed(2)}</b>
-                </div>
-                <div>
-                  Precio: <b>Bs {costo.precioRef}</b> por hora / Total: <b>Bs {costo.total}</b>
-                </div>
-                <div style={{ fontSize: 12, color: "#94a3b8", marginTop: 6 }}>
-                  Para costo por bloques debe existir relacion EspacioActividad con duracion y precio.
-                </div>
-              </div>
-            )}
+            </div>
+
+            <div style={{ marginTop: 12, color: "#cbd5e1", fontSize: 12, lineHeight: 1.45 }}>
+              {costo.mode === "bloques" ? (
+                <>
+                  Se cobra por bloques de <b>{costo.baseMin} min</b>. Bloques usados: <b>{formatNumber(costo.bloques)}</b>.
+                </>
+              ) : (
+                <>
+                  Selecciona una relacion Espacio-Actividad con precio para calcular el total real.
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -328,8 +404,8 @@ export default function ReservaForm({
         </div>
       )}
 
-      <Button onClick={() => void submit()} disabled={loading || !canSubmit} fullWidth>
-        {loading ? <Loader label="Guardando..." /> : "Crear reserva"}
+      <Button onClick={() => void submit()} disabled={loading || !canSubmit} fullWidth size="lg">
+        {loading ? <Loader label="Guardando..." /> : `Confirmar reserva · ${totalLabel}`}
       </Button>
 
       <QuickCreateClienteModal

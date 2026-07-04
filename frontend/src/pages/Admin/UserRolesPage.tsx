@@ -8,6 +8,7 @@ import Toast from "../../components/ui/Toast";
 import { MODULES, moduleLabel, type ModuleKey } from "../../models/modules";
 import type { ManagedUser, ManagedUserWriteDTO } from "../../models/user";
 import usersService from "../../services/users.service";
+import { getErrorMessage } from "../../utils/error";
 
 const panelStyle: CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -161,6 +162,8 @@ export default function UserRolesPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [selected, setSelected] = useState<ManagedUser | null>(null);
   const [form, setForm] = useState<ManagedUserWriteDTO>(emptyForm);
+  const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -190,7 +193,7 @@ export default function UserRolesPage() {
         setSelected(normalized.find((user) => user.id === selected.id) ?? null);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo cargar usuarios.");
+      setError(getErrorMessage(err, "No se pudo cargar usuarios."));
     } finally {
       setLoading(false);
     }
@@ -225,11 +228,14 @@ export default function UserRolesPage() {
       setForm(emptyForm);
       setPage(1);
       setSelected(normalizeUser(created));
+      setModalMode(null);
       setGeneratedPassword(null);
-      setToast({ open: true, message: "Usuario creado.", type: "success" });
+      setToast({ open: true, message: "Usuario creado correctamente.", type: "success" });
       await load(1);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear usuario.");
+      const message = getErrorMessage(err, "No se pudo crear usuario.");
+      setError(message);
+      setToast({ open: true, message, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -245,7 +251,9 @@ export default function UserRolesPage() {
       setResetPassword("");
       setToast({ open: true, message: "Contrasena reseteada.", type: "success" });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo resetear la contrasena.");
+      const message = getErrorMessage(err, "No se pudo resetear la contrasena.");
+      setError(message);
+      setToast({ open: true, message, type: "error" });
     } finally {
       setLoading(false);
     }
@@ -265,28 +273,58 @@ export default function UserRolesPage() {
         modules: selected.modules,
       });
       setSelected(normalizeUser(updated));
-      setToast({ open: true, message: "Permisos actualizados.", type: "success" });
+      setToast({ open: true, message: "Usuario actualizado correctamente.", type: "success" });
+      setModalMode(null);
       await load(page);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo guardar.");
+      const message = getErrorMessage(err, "No se pudo guardar.");
+      setError(message);
+      setToast({ open: true, message, type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
-  const onDelete = async () => {
-    if (!selected || selected.is_superuser) return;
+  const confirmDelete = async () => {
+    if (!deleteTarget || deleteTarget.is_superuser) return;
+    const target = deleteTarget;
+    setDeleteTarget(null);
+    setSelected(null);
+    setModalMode(null);
     setLoading(true);
+    setError(null);
     try {
-      await usersService.remove(selected.id);
-      setSelected(null);
-      setToast({ open: true, message: "Usuario eliminado.", type: "success" });
+      await usersService.remove(target.id);
+      setToast({ open: true, message: "Usuario eliminado correctamente.", type: "success" });
       await load(page);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo eliminar.");
+      const message = getErrorMessage(err, "No se pudo eliminar.");
+      setError(message);
+      setToast({ open: true, message, type: "error" });
     } finally {
       setLoading(false);
     }
+  };
+
+  const openCreate = () => {
+    setForm(emptyForm);
+    setSelected(null);
+    setGeneratedPassword(null);
+    setResetPassword("");
+    setModalMode("create");
+  };
+
+  const openEdit = (user: ManagedUser) => {
+    setSelected(normalizeUser(user));
+    setGeneratedPassword(null);
+    setResetPassword("");
+    setModalMode("edit");
+  };
+
+  const closeModal = () => {
+    setModalMode(null);
+    setGeneratedPassword(null);
+    setResetPassword("");
   };
 
   return (
@@ -295,9 +333,12 @@ export default function UserRolesPage() {
         title="Usuarios y roles"
         subtitle="Solo el superusuario puede crear usuarios y asignar modulos visibles."
         rightSlot={
-          <Button variant="outline" onClick={() => void load()} disabled={loading}>
-            Refrescar
-          </Button>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button onClick={openCreate}>+ Nuevo usuario</Button>
+            <Button variant="outline" onClick={() => void load()} disabled={loading}>
+              Refrescar
+            </Button>
+          </div>
         }
       >
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
@@ -307,110 +348,165 @@ export default function UserRolesPage() {
         </div>
       </Card>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(360px, 1fr))", gap: 22, alignItems: "start" }}>
-        <Card title="Crear usuario" subtitle="Credenciales y modulos iniciales.">
-          <div style={{ display: "grid", gap: 12 }}>
-            <Input label="Usuario" value={form.username} onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))} />
-            <Input label="Email" value={form.email ?? ""} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} />
-            <Input label="Contrasena" value={form.password ?? ""} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} placeholder="Default: 123456" />
-            <Input label="Rol visible" value={form.role} onChange={(e) => setForm((s) => ({ ...s, role: e.target.value }))} />
+      <Card title="Listado" subtitle="Click o doble click sobre un usuario para editarlo.">
+        <div style={{ display: "grid", gap: 14 }}>
+          <Input
+            label="Buscar"
+            placeholder="Usuario, email o rol..."
+            value={query}
+            onChange={(e) => {
+              setQuery(e.target.value);
+              setPage(1);
+            }}
+          />
+          {loading && <Loader label="Cargando usuarios..." />}
+          <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 610, overflow: "auto" }}>
+            {filtered.map((user) => {
+              const active = selected?.id === user.id;
+              return (
+                <button
+                  key={user.id}
+                  type="button"
+                  onClick={() => openEdit(user)}
+                  onDoubleClick={() => openEdit(user)}
+                  style={{
+                    border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
+                    borderRadius: 8,
+                    background: active ? "rgba(255,210,74,0.07)" : "#0f1420",
+                    color: "var(--color-text)",
+                    padding: 14,
+                    textAlign: "left",
+                    cursor: "pointer",
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
+                    <strong>{user.username}</strong>
+                    <span style={{ color: user.is_active ? "#8ee59f" : "#ffb4b4", fontSize: 12, fontWeight: 900 }}>
+                      {user.is_superuser ? "Superuser" : user.role}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: 12 }}>
+                    {(user.modules ?? []).map(moduleLabel).join(", ") || "Sin modulos"}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openEdit(user);
+                      }}
+                    >
+                      Editar
+                    </Button>
+                  </div>
+                </button>
+              );
+            })}
 
-            <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 800 }}>
-              <input
-                type="checkbox"
-                checked={form.is_staff}
-                onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, is_staff: e.target.checked }))}
-              />
-              Puede operar datos administrativos
-            </label>
-
-            <ModuleAccessSections
-              value={form.modules ?? []}
-              includeUsers={false}
-              onChange={(modules) => setForm((s) => ({ ...s, modules }))}
-            />
-
-            <Button onClick={() => void onCreate()} disabled={loading || !form.username.trim()} fullWidth>
-              {loading ? <Loader label="Guardando..." /> : "Crear usuario"}
-            </Button>
+            {!loading && filtered.length === 0 && (
+              <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No se encontraron usuarios.</div>
+            )}
           </div>
-        </Card>
 
-        <Card title="Listado" subtitle="Selecciona un usuario para editar sus modulos.">
-          <div style={{ display: "grid", gap: 12 }}>
-            <Input
-              label="Buscar"
-              placeholder="Usuario, email o rol..."
-              value={query}
-              onChange={(e) => {
-                setQuery(e.target.value);
-                setPage(1);
-              }}
-            />
-            {loading && <Loader label="Cargando usuarios..." />}
-            <div style={{ ...panelStyle, display: "grid", gap: 10, minHeight: 474 }}>
-              {filtered.map((user) => {
-                const active = selected?.id === user.id;
-                return (
-                  <button
-                    key={user.id}
-                    type="button"
-                    onClick={() => {
-                      setSelected(normalizeUser(user));
-                      setGeneratedPassword(null);
-                      setResetPassword("");
-                    }}
-                    style={{
-                      border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
-                      borderRadius: 8,
-                      background: active ? "rgba(255,210,74,0.07)" : "#0f1420",
-                      color: "var(--color-text)",
-                      padding: 14,
-                      textAlign: "left",
-                      cursor: "pointer",
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                      <strong>{user.username}</strong>
-                      <span style={{ color: user.is_active ? "#8ee59f" : "#ffb4b4", fontSize: 12, fontWeight: 900 }}>
-                        {user.is_superuser ? "Superuser" : user.role}
-                      </span>
-                    </div>
-                    <div style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: 12 }}>
-                      {(user.modules ?? []).map(moduleLabel).join(", ") || "Sin modulos"}
-                    </div>
-                  </button>
-                );
-              })}
-
-              {!loading && filtered.length === 0 && (
-                <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No se encontraron usuarios.</div>
-              )}
-            </div>
-
-            <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
-                {totalUsers === 0
-                  ? "Sin usuarios"
-                  : `Usuarios ${pageStart}-${pageEnd} de ${totalUsers}`}
-              </span>
-              <div style={{ display: "flex", gap: 10 }}>
-                <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!hasPreviousPage || loading}>
-                  Anterior
-                </Button>
-                <Button variant="outline" onClick={() => setPage((p) => p + 1)} disabled={!hasNextPage || loading}>
-                  Siguiente
-                </Button>
-              </div>
+          <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
+              {totalUsers === 0 ? "Sin usuarios" : `Usuarios ${pageStart}-${pageEnd} de ${totalUsers}`}
+            </span>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Button variant="outline" onClick={() => setPage((p) => Math.max(1, p - 1))} disabled={!hasPreviousPage || loading}>
+                Anterior
+              </Button>
+              <Button variant="outline" onClick={() => setPage((p) => p + 1)} disabled={!hasNextPage || loading}>
+                Siguiente
+              </Button>
             </div>
           </div>
-        </Card>
-      </div>
+        </div>
+      </Card>
 
-      {selected && createPortal(
+      {modalMode === "create" && createPortal(
         <div
           role="presentation"
-          onClick={() => setSelected(null)}
+          onClick={closeModal}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1200,
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            background: "rgba(5, 8, 15, 0.72)",
+            backdropFilter: "blur(3px)",
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="user-create-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(860px, 100%)",
+              maxHeight: "88vh",
+              overflow: "auto",
+              border: "1px solid rgba(255,210,74,0.28)",
+              borderRadius: 10,
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+              padding: 18,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 16 }}>
+              <div>
+                <h2 id="user-create-title" style={{ margin: 0, fontSize: 20, fontWeight: 950 }}>
+                  Nuevo usuario
+                </h2>
+                <div style={{ color: "var(--color-text-muted)", fontSize: 13, marginTop: 4 }}>
+                  Crea credenciales y define accesos iniciales.
+                </div>
+              </div>
+              <Button variant="ghost" onClick={closeModal} disabled={loading}>
+                Cerrar
+              </Button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 330px) minmax(360px, 1fr)", gap: 18, alignItems: "start" }}>
+              <div style={{ display: "grid", gap: 12 }}>
+                <Input label="Usuario" value={form.username} onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))} />
+                <Input label="Email" value={form.email ?? ""} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} />
+                <Input label="Contrasena" value={form.password ?? ""} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} placeholder="Default: 123456" />
+                <Input label="Rol visible" value={form.role} onChange={(e) => setForm((s) => ({ ...s, role: e.target.value }))} />
+
+                <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 800 }}>
+                  <input
+                    type="checkbox"
+                    checked={form.is_staff}
+                    onChange={(e: ChangeEvent<HTMLInputElement>) => setForm((s) => ({ ...s, is_staff: e.target.checked }))}
+                  />
+                  Puede operar datos administrativos
+                </label>
+
+                <Button onClick={() => void onCreate()} disabled={loading || !form.username.trim()} fullWidth>
+                  {loading ? <Loader label="Guardando..." /> : "Crear usuario"}
+                </Button>
+              </div>
+
+              <ModuleAccessSections
+                value={form.modules ?? []}
+                includeUsers={false}
+                onChange={(modules) => setForm((s) => ({ ...s, modules }))}
+              />
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
+
+      {modalMode === "edit" && selected && createPortal(
+        <div
+          role="presentation"
+          onClick={closeModal}
           style={{
             position: "fixed",
             inset: 0,
@@ -448,7 +544,7 @@ export default function UserRolesPage() {
                   Permisos y accesos de {selected.username}.
                 </div>
               </div>
-              <Button variant="ghost" onClick={() => setSelected(null)}>
+              <Button variant="ghost" onClick={closeModal}>
                 Cerrar
               </Button>
             </div>
@@ -520,7 +616,7 @@ export default function UserRolesPage() {
                   )}
                 </div>
 
-                <Button variant="danger" onClick={() => void onDelete()} disabled={loading || selected.is_superuser}>
+                <Button variant="danger" onClick={() => setDeleteTarget(selected)} disabled={loading || selected.is_superuser}>
                   Eliminar usuario
                 </Button>
               </div>
@@ -530,6 +626,55 @@ export default function UserRolesPage() {
                 disabled={selected.is_superuser}
                 onChange={(modules) => setSelected((s) => (s ? { ...s, modules } : s))}
               />
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
+
+      {deleteTarget && createPortal(
+        <div
+          role="presentation"
+          onClick={() => setDeleteTarget(null)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1300,
+            display: "grid",
+            placeItems: "center",
+            padding: 24,
+            background: "rgba(5, 8, 15, 0.72)",
+            backdropFilter: "blur(3px)",
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="user-delete-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(460px, 100%)",
+              border: "1px solid rgba(255,82,82,0.38)",
+              borderRadius: 10,
+              background: "var(--color-surface)",
+              color: "var(--color-text)",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+              padding: 18,
+            }}
+          >
+            <h2 id="user-delete-title" style={{ margin: 0, fontSize: 20, fontWeight: 950 }}>
+              Eliminar usuario
+            </h2>
+            <div style={{ marginTop: 8, color: "var(--color-text-muted)", fontSize: 13, lineHeight: 1.45 }}>
+              Se eliminara el usuario {deleteTarget.username}. Esta accion no se puede deshacer.
+            </div>
+            <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+              <Button variant="danger" onClick={() => void confirmDelete()} disabled={loading} fullWidth>
+                {loading ? <Loader label="Eliminando..." /> : "Eliminar usuario"}
+              </Button>
+              <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={loading}>
+                Cancelar
+              </Button>
             </div>
           </section>
         </div>,

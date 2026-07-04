@@ -6,10 +6,12 @@ const ENDPOINT = "/api/espacios/reservas/";
 
 export type ReservasQuery = {
   page?: string;
+  page_size?: string;
   desde?: string; // YYYY-MM-DD
   hasta?: string; // YYYY-MM-DD
   espacio?: string;
   usuario?: string;
+  cliente?: string;
   actividad?: string;
 };
 

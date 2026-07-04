@@ -33,10 +33,12 @@ export function useReservas() {
   const list = useCallback(
     async (params?: {
       page?: string;
+      page_size?: string;
       desde?: string;
       hasta?: string;
       espacio?: string;
       usuario?: string;
+      cliente?: string;
       actividad?: string;
     }) => {
       setLoading(true);

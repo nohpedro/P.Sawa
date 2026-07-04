@@ -13,7 +13,7 @@ export function estadoActualDesdeReservas(
   reservasDelDia: Reserva[],
   now = new Date()
 ): "LIBRE" | "OCUPADO" | "NO_DISPONIBLE" {
-  if (espacio.estado_operativo !== "Disponible") return "NO_DISPONIBLE";
+  if (espacio.estado_operativo !== "DISPONIBLE") return "NO_DISPONIBLE";
 
   const relevantes = reservasDelDia.filter((r) => r.espacio === espacio.id);
   const ocupado = relevantes.some((r) => {

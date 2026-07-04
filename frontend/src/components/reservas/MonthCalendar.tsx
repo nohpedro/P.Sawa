@@ -72,7 +72,7 @@ export default function MonthCalendar({
       </div>
 
       <div style={{ fontSize: 12, opacity: 0.8 }}>
-        Tip: <b>Doble click</b> en un día para crear una reserva.
+        Tip: selecciona un día y usa <b>Nueva reserva</b>. El doble click tambien abre el formulario.
       </div>
     </div>
   );

@@ -2,6 +2,7 @@ import { useCallback, useState } from "react";
 import espacioActividadService from "../services/espacioActividad.service";
 import type { EspacioActividad } from "../models/actividad";
 import type { PaginatedResponse } from "../models/pagination";
+import { getErrorMessage } from "../utils/error";
 
 export function useEspacioActividad() {
   const [data, setData] = useState<PaginatedResponse<EspacioActividad> | null>(null);
@@ -17,7 +18,7 @@ export function useEspacioActividad() {
       setData(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al listar espacio-actividad");
+      setError(getErrorMessage(e, "Error al listar espacio-actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -32,7 +33,7 @@ export function useEspacioActividad() {
       setCurrent(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al obtener espacio-actividad");
+      setError(getErrorMessage(e, "Error al obtener espacio-actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -46,7 +47,7 @@ export function useEspacioActividad() {
       const res = await espacioActividadService.create(payload);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al crear espacio-actividad");
+      setError(getErrorMessage(e, "Error al crear espacio-actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -61,7 +62,7 @@ export function useEspacioActividad() {
       setCurrent(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al actualizar espacio-actividad");
+      setError(getErrorMessage(e, "Error al actualizar espacio-actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -76,7 +77,7 @@ export function useEspacioActividad() {
       setCurrent(res);
       return res;
     } catch (e: any) {
-      setError(e?.message ?? "Error al editar espacio-actividad");
+      setError(getErrorMessage(e, "Error al editar espacio-actividad"));
       throw e;
     } finally {
       setLoading(false);
@@ -89,7 +90,7 @@ export function useEspacioActividad() {
     try {
       await espacioActividadService.remove(id);
     } catch (e: any) {
-      setError(e?.message ?? "Error al eliminar espacio-actividad");
+      setError(getErrorMessage(e, "Error al eliminar espacio-actividad"));
       throw e;
     } finally {
       setLoading(false);

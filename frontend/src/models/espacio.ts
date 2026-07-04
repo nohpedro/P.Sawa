@@ -12,7 +12,7 @@ export interface TipoActividad {
 }
 
 // Valores vienen del enum EspaciosEstado (backend)
-export type EspacioEstadoOperativo = "Disponible" | "Mantenimiento" | "Fuera de servicio";
+export type EspacioEstadoOperativo = "DISPONIBLE" | "MANTENIMIENTO" | "FUERA_DE_SERVICIO";
 
 // Campo calculado (backend) para GET
 export type EspacioEstadoActual = "LIBRE" | "OCUPADO" | "NO_DISPONIBLE";
