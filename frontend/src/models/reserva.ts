@@ -9,6 +9,7 @@ export interface Reserva {
   usuario: number; // según tu API (viene como 3)
   usuario_username?: string;
 
+  cliente?: string | null;
   // datos del cliente (solo lectura en response)
   cliente_nombre?: string;
   cliente_apellido?: string;

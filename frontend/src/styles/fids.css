@@ -130,6 +130,232 @@
 .status-unavailable {
   color: #888;
 }
+
+/* Fullscreen sports moment */
+.fids-sport-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  overflow: hidden;
+  animation: fidsMomentFade 4.8s ease-in-out both;
+}
+
+.fids-sport-moment__beam {
+  position: absolute;
+  inset: auto -14vw 12vh -14vw;
+  height: 32vh;
+  background:
+    linear-gradient(90deg, transparent, rgba(255, 210, 74, 0.22), transparent),
+    repeating-linear-gradient(90deg, transparent 0 78px, rgba(255, 255, 255, 0.05) 79px 80px);
+  transform: skewY(-4deg) translateY(20px);
+  filter: blur(0.2px);
+  opacity: 0;
+  animation: fidsMomentBeam 4.8s ease-in-out both;
+}
+
+.fids-sport-moment__ball {
+  position: absolute;
+  left: -96px;
+  top: 24vh;
+  width: 74px;
+  height: 74px;
+  border: 4px solid #f8fafc;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 32% 27%, rgba(255, 255, 255, 0.92) 0 11%, transparent 12%),
+    linear-gradient(135deg, transparent 0 42%, rgba(16, 19, 26, 0.28) 43% 49%, transparent 50% 100%),
+    linear-gradient(45deg, transparent 0 58%, rgba(255, 255, 255, 0.42) 59% 65%, transparent 66% 100%),
+    #ffd24a;
+  box-shadow:
+    inset -12px -14px 0 rgba(16, 19, 26, 0.15),
+    0 0 28px rgba(255, 210, 74, 0.65),
+    0 24px 46px rgba(0, 0, 0, 0.34);
+  animation: fidsMomentBall 4.8s cubic-bezier(0.16, 0.86, 0.28, 1) both;
+}
+
+.fids-sport-moment--futbol .fids-sport-moment__ball {
+  background:
+    radial-gradient(circle at 50% 50%, #10131a 0 17%, transparent 18%),
+    radial-gradient(circle at 19% 25%, #10131a 0 10%, transparent 11%),
+    radial-gradient(circle at 80% 29%, #10131a 0 10%, transparent 11%),
+    radial-gradient(circle at 28% 80%, #10131a 0 10%, transparent 11%),
+    radial-gradient(circle at 78% 78%, #10131a 0 10%, transparent 11%),
+    #f8fafc;
+  box-shadow:
+    inset -12px -14px 0 rgba(16, 19, 26, 0.1),
+    0 0 28px rgba(248, 250, 252, 0.48),
+    0 24px 46px rgba(0, 0, 0, 0.34);
+}
+
+.fids-sport-moment--basquet .fids-sport-moment__ball {
+  border-color: #f97316;
+  background:
+    linear-gradient(90deg, transparent 47%, rgba(16, 19, 26, 0.55) 48% 52%, transparent 53%),
+    linear-gradient(0deg, transparent 47%, rgba(16, 19, 26, 0.55) 48% 52%, transparent 53%),
+    radial-gradient(circle at 0 50%, transparent 0 45%, rgba(16, 19, 26, 0.48) 46% 53%, transparent 54%),
+    radial-gradient(circle at 100% 50%, transparent 0 45%, rgba(16, 19, 26, 0.48) 46% 53%, transparent 54%),
+    #f97316;
+  box-shadow:
+    inset -12px -14px 0 rgba(16, 19, 26, 0.15),
+    0 0 28px rgba(249, 115, 22, 0.6),
+    0 24px 46px rgba(0, 0, 0, 0.34);
+}
+
+.fids-sport-moment__trail {
+  position: absolute;
+  left: 9vw;
+  top: calc(24vh + 34px);
+  width: 32vw;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(255, 210, 74, 0.72), transparent);
+  transform-origin: left;
+  opacity: 0;
+  animation: fidsMomentTrail 4.8s ease-in-out both;
+}
+
+.fids-sport-moment__trail--two {
+  top: calc(24vh + 56px);
+  width: 22vw;
+  animation-delay: 90ms;
+}
+
+.fids-sport-moment__card {
+  position: absolute;
+  right: 7vw;
+  bottom: 13vh;
+  min-width: 310px;
+  padding: 18px 20px;
+  border: 1px solid rgba(255, 210, 74, 0.34);
+  border-radius: 10px;
+  background:
+    linear-gradient(135deg, rgba(255, 210, 74, 0.17), rgba(255, 255, 255, 0.055)),
+    rgba(15, 20, 32, 0.86);
+  color: #eaeaea;
+  box-shadow: 0 24px 58px rgba(0, 0, 0, 0.42), 0 0 0 5px rgba(255, 210, 74, 0.08);
+  transform: translateY(18px) scale(0.96);
+  opacity: 0;
+  animation: fidsMomentCard 4.8s ease-in-out both;
+}
+
+.fids-sport-moment__card span,
+.fids-sport-moment__card strong,
+.fids-sport-moment__card em {
+  display: block;
+}
+
+.fids-sport-moment__card span {
+  color: #ffd24a;
+  font-size: 13px;
+  font-weight: 950;
+  letter-spacing: 1.1px;
+  text-transform: uppercase;
+}
+
+.fids-sport-moment__card strong {
+  margin-top: 4px;
+  font-size: 28px;
+  line-height: 1.08;
+  font-weight: 950;
+}
+
+.fids-sport-moment__card em {
+  margin-top: 9px;
+  color: rgba(234, 234, 234, 0.78);
+  font-size: 14px;
+  font-style: normal;
+  font-weight: 850;
+}
+
+@keyframes fidsMomentFade {
+  0%, 100% {
+    opacity: 0;
+  }
+  10%, 84% {
+    opacity: 1;
+  }
+}
+
+@keyframes fidsMomentBeam {
+  0% {
+    opacity: 0;
+    transform: skewY(-4deg) translate(-12vw, 48px);
+  }
+  18%, 80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: skewY(-4deg) translate(12vw, 14px);
+  }
+}
+
+@keyframes fidsMomentBall {
+  0% {
+    transform: translate(-6vw, 18vh) rotate(-240deg) scale(0.72);
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  56% {
+    transform: translate(52vw, -8vh) rotate(540deg) scale(1.08);
+  }
+  76% {
+    transform: translate(68vw, 8vh) rotate(760deg) scale(0.96);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(108vw, -3vh) rotate(1060deg) scale(0.78);
+    opacity: 0;
+  }
+}
+
+@keyframes fidsMomentTrail {
+  0%, 18%, 100% {
+    opacity: 0;
+    transform: translateX(-16vw) scaleX(0.2);
+  }
+  38%, 64% {
+    opacity: 1;
+    transform: translateX(16vw) scaleX(1);
+  }
+  84% {
+    opacity: 0;
+    transform: translateX(54vw) scaleX(0.45);
+  }
+}
+
+@keyframes fidsMomentCard {
+  0%, 22%, 100% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+  34%, 78% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 860px) {
+  .fids-sport-moment__ball {
+    width: 56px;
+    height: 56px;
+  }
+
+  .fids-sport-moment__card {
+    left: 18px;
+    right: 18px;
+    bottom: 10vh;
+    min-width: 0;
+  }
+
+  .fids-sport-moment__card strong {
+    font-size: 22px;
+  }
+}
+
 .fids-board.fids-reservas .fids-header,
 .fids-board.fids-reservas .fids-row {
   grid-template-columns: 1.4fr 1.2fr 1fr 1fr 1fr 1.2fr;

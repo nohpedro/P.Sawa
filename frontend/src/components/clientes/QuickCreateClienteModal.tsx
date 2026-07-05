@@ -35,18 +35,21 @@ export default function QuickCreateClienteModal({
   };
 
   const submit = async () => {
-    if (!form.nombre.trim() && !form.apellido.trim()) {
-      setToast({ open: true, message: "Ingresa al menos nombre o apellido.", type: "error" });
+    const nombre = form.nombre.trim();
+    const apellido = form.apellido.trim();
+
+    if (!nombre || !apellido) {
+      setToast({ open: true, message: "Faltan datos obligatorios: nombre y apellido.", type: "error" });
       return;
     }
 
     try {
       const created = await onCreate({
-        nombre: form.nombre.trim(),
-        apellido: form.apellido.trim(),
-        telefono: form.telefono.trim(),
-        documento: form.documento.trim(),
-        notas: form.notas.trim(),
+        nombre,
+        apellido,
+        telefono: "",
+        documento: "",
+        notas: "",
       });
 
       setToast({ open: true, message: "Cliente creado.", type: "success" });
@@ -64,16 +67,22 @@ export default function QuickCreateClienteModal({
   return (
     <>
       <FullScreenModal open={open} title="Crear cliente" subtitle="Registro rápido sin salir de Reservas" onClose={onClose}>
-        <Card title="Datos del cliente">
+        <Card title="Datos minimos del cliente">
           <div style={{ display: "grid", gap: 14 }}>
-            <Input label="Nombre" value={form.nombre} onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))} />
-            <Input label="Apellido" value={form.apellido} onChange={(e) => setForm((s) => ({ ...s, apellido: e.target.value }))} />
-            <Input label="Teléfono" value={form.telefono} onChange={(e) => setForm((s) => ({ ...s, telefono: e.target.value }))} />
-            <Input label="Documento" value={form.documento} onChange={(e) => setForm((s) => ({ ...s, documento: e.target.value }))} />
-            <Input label="Notas" value={form.notas} onChange={(e) => setForm((s) => ({ ...s, notas: e.target.value }))} />
-
+            <Input
+              label="Nombre *"
+              value={form.nombre}
+              onChange={(e) => setForm((s) => ({ ...s, nombre: e.target.value }))}
+              error={!form.nombre.trim() ? "Obligatorio" : undefined}
+            />
+            <Input
+              label="Apellido *"
+              value={form.apellido}
+              onChange={(e) => setForm((s) => ({ ...s, apellido: e.target.value }))}
+              error={!form.apellido.trim() ? "Obligatorio" : undefined}
+            />
             <div style={{ display: "flex", gap: 12 }}>
-              <Button onClick={() => void submit()} disabled={loading} fullWidth>
+              <Button onClick={() => void submit()} disabled={loading || !form.nombre.trim() || !form.apellido.trim()} fullWidth>
                 {loading ? <Loader label="Guardando..." /> : "Crear cliente"}
               </Button>
               <Button variant="outline" onClick={onClose} disabled={loading}>

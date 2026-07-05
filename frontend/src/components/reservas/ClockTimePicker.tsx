@@ -16,7 +16,7 @@ const FIELD_STYLE: React.CSSProperties = {
 };
 
 const STEP_BUTTON_STYLE: React.CSSProperties = {
-  minHeight: 38,
+  minHeight: 34,
   border: "1px solid #334155",
   borderRadius: 8,
   background: "#182235",
@@ -107,24 +107,22 @@ export default function ClockTimePicker({
     onChange(fromMinutes(minutesFromHHMM(value) + delta));
   };
 
-  const quickTimes: HHMM[] = ["08:00", "12:00", "18:00", "19:00", "20:00", "21:00"];
-
   return (
     <div
       style={{
         display: "grid",
-        gap: 12,
+        gap: 10,
         border: "1px solid #263244",
-        borderRadius: 10,
+        borderRadius: 8,
         background: "#0b1220",
-        padding: 14,
+        padding: 10,
         color: "#f8fafc",
         opacity: disabled ? 0.65 : 1,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
         <label style={{ fontSize: 13, color: "#cbd5e1", fontWeight: 900 }}>{label}</label>
-        <div style={{ fontSize: 24, lineHeight: 1, fontWeight: 950, color: "#ffd24a" }}>
+        <div style={{ fontSize: 20, lineHeight: 1, fontWeight: 950, color: "#ffd24a" }}>
           {pad2(h)}:{pad2(m)}
         </div>
       </div>
@@ -151,31 +149,6 @@ export default function ClockTimePicker({
         <TimeButton disabled={disabled} onClick={() => setByMinutes(minuteStep)}>
           +{minuteStep} m
         </TimeButton>
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: 8 }}>
-        {quickTimes.map((time) => {
-          const active = time === value;
-          return (
-            <button
-              key={time}
-              type="button"
-              disabled={disabled}
-              onClick={() => onChange(time)}
-              style={{
-                minHeight: 34,
-                borderRadius: 8,
-                border: `1px solid ${active ? "#ffd24a" : "#334155"}`,
-                background: active ? "#ffd24a" : "#111827",
-                color: active ? "#10131a" : "#e5e7eb",
-                cursor: disabled ? "not-allowed" : "pointer",
-                fontWeight: 900,
-              }}
-            >
-              {time}
-            </button>
-          );
-        })}
       </div>
     </div>
   );

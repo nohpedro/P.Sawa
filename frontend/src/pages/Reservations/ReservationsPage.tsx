@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import Card from "../../components/ui/Card";
+import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import Loader from "../../components/ui/Loader";
 import Toast from "../../components/ui/Toast";
@@ -24,6 +25,9 @@ export default function ReservationsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
+  const [calendarOpen, setCalendarOpen] = useState(true);
+  const [dayReservationsOpen, setDayReservationsOpen] = useState(true);
+  const [hourQuery, setHourQuery] = useState("");
   const [toast, setToast] = useState<ToastState>({ open: false, message: "", type: "info" });
 
   const loadDay = async (day: string) => {
@@ -36,10 +40,41 @@ export default function ReservationsPage() {
   }, [selectedDay]);
 
   const rows = reservas.data?.results ?? [];
+  const filteredRows = useMemo(() => {
+    const query = hourQuery.trim().toLowerCase();
+    if (!query) return rows;
+
+    return rows.filter((reservation) => {
+      const inicio = formatHHMM(reservation.inicio);
+      const fin = formatHHMM(reservation.fin);
+      const haystack = [
+        inicio,
+        fin,
+        `${inicio} - ${fin}`,
+        reservation.espacio_nombre ?? reservation.espacio,
+        reservation.actividad_nombre ?? reservation.actividad,
+        `${reservation.cliente_nombre ?? ""} ${reservation.cliente_apellido ?? ""}`,
+        reservation.usuario_username ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }, [hourQuery, rows]);
 
   const monthLabel = useMemo(() => {
     const m = month.toLocaleString("es-BO", { month: "long" });
     return `${m.charAt(0).toUpperCase() + m.slice(1)} ${month.getFullYear()}`;
+  }, [month]);
+  const currentMonthName = useMemo(() => {
+    const now = new Date();
+    const m = now.toLocaleString("es-BO", { month: "long" });
+    return m.charAt(0).toUpperCase() + m.slice(1);
+  }, []);
+  const isCurrentMonth = useMemo(() => {
+    const now = new Date();
+    return month.getMonth() === now.getMonth() && month.getFullYear() === now.getFullYear();
   }, [month]);
 
   const onDoubleClickDay = (day: string) => {
@@ -54,6 +89,9 @@ export default function ReservationsPage() {
     await loadDay(selectedDay);
   };
 
+  const bothPanelsOpen = calendarOpen && dayReservationsOpen;
+  const panelsTemplate = bothPanelsOpen ? "520px minmax(0, 1fr)" : "minmax(0, 1fr)";
+
   return (
     <div style={{ display: "grid", gap: 20 }}>
       <Card title="Reservas" subtitle="Selecciona un día y crea reservas rapidamente.">
@@ -62,7 +100,19 @@ export default function ReservationsPage() {
             Día seleccionado: <b>{selectedDay}</b> · Reservas: <b>{rows.length}</b>
           </div>
 
-          <div style={{ marginLeft: "auto", display: "flex", gap: 10 }}>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 10, flexWrap: "wrap" }}>
+            {!calendarOpen && (
+              <Button variant="outline" onClick={() => setCalendarOpen(true)}>
+                Mostrar calendario
+              </Button>
+            )}
+
+            {!dayReservationsOpen && (
+              <Button variant="outline" onClick={() => setDayReservationsOpen(true)}>
+                Mostrar agenda
+              </Button>
+            )}
+
             <Button onClick={() => setModalOpen(true)}>+ Nueva reserva</Button>
 
             <Button
@@ -97,8 +147,24 @@ export default function ReservationsPage() {
         </div>
       </Card>
 
-      <div style={{ display: "grid", gap: 20, gridTemplateColumns: "520px 1fr", alignItems: "start" }}>
-        <Card title="Calendario" subtitle="Un click selecciona el día. Usa Nueva reserva para agendar.">
+      <div style={{ display: "grid", gap: 20, gridTemplateColumns: panelsTemplate, alignItems: "start" }}>
+        {calendarOpen && (
+        <Card
+          title={isCurrentMonth ? `Calendario (${currentMonthName})` : "Calendario"}
+          subtitle="Un click selecciona el día. Usa Nueva reserva para agendar."
+          rightSlot={
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {dayReservationsOpen && (
+                <Button variant="outline" size="sm" onClick={() => setDayReservationsOpen(false)}>
+                  Expandir
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setCalendarOpen(false)} disabled={!dayReservationsOpen}>
+                Minimizar
+              </Button>
+            </div>
+          }
+        >
           <MonthCalendar
             month={month}
             selectedDay={selectedDay}
@@ -106,10 +172,39 @@ export default function ReservationsPage() {
             onDoubleClickDay={onDoubleClickDay}
           />
         </Card>
+        )}
 
-        <Card title="Reservas del día" subtitle="Agenda visible del día seleccionado.">
+        {dayReservationsOpen && (
+        <Card
+          title="Reservas del día"
+          subtitle="Agenda visible del día seleccionado."
+          rightSlot={
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {calendarOpen && (
+                <Button variant="outline" size="sm" onClick={() => setCalendarOpen(false)}>
+                  Expandir
+                </Button>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setDayReservationsOpen(false)} disabled={!calendarOpen}>
+                Minimizar
+              </Button>
+            </div>
+          }
+        >
           {reservas.loading && <Loader label="Cargando reservas..." />}
           {reservas.error && <div style={{ color: "#ff5252", fontSize: 13 }}>{reservas.error}</div>}
+
+          <div style={{ display: "grid", gridTemplateColumns: "minmax(220px, 1fr) auto", gap: 10, alignItems: "end" }}>
+            <Input
+              label="Buscar hora"
+              placeholder="Ej: 19, 19:00, 19:00 - 20:00"
+              value={hourQuery}
+              onChange={(event) => setHourQuery(event.target.value)}
+            />
+            <Button variant="outline" onClick={() => setHourQuery("")} disabled={!hourQuery.trim()}>
+              Limpiar
+            </Button>
+          </div>
 
           <div className="fids-board fids-reservas" style={{ marginTop: 12 }}>
             <div className="fids-header">
@@ -121,7 +216,7 @@ export default function ReservationsPage() {
               <div className="fids-cell">Estado</div>
             </div>
 
-            {rows.map((r) => (
+            {filteredRows.map((r) => (
               <div key={r.id} className="fids-row">
                 <div className="fids-cell">{r.espacio_nombre ?? r.espacio}</div>
                 <div className="fids-cell">
@@ -137,9 +232,13 @@ export default function ReservationsPage() {
             {!reservas.loading && rows.length === 0 && (
               <div style={{ padding: 16, opacity: 0.8 }}>No hay reservas este día.</div>
             )}
+            {!reservas.loading && rows.length > 0 && filteredRows.length === 0 && (
+              <div style={{ padding: 16, opacity: 0.8 }}>No hay reservas que coincidan con esa busqueda.</div>
+            )}
           </div>
 
         </Card>
+        )}
       </div>
 
       <FullScreenModal

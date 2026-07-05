@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { NavLink } from "react-router-dom";
+import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import type { SidebarSection } from "./sidebar.types";
 
 export default function Sidebar({
@@ -17,7 +18,7 @@ export default function Sidebar({
         className={`app-sidebar${collapsed ? " app-sidebar--collapsed" : ""}`}
         style={{
           width: collapsed ? 72 : 260,
-          transition: "width 0.24s cubic-bezier(0.2, 0.8, 0.2, 1)",
+          transition: "width 0.34s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.34s ease",
           borderRight: "1px solid rgba(255, 210, 74, 0.16)",
           background:
             "linear-gradient(180deg, rgba(255, 210, 74, 0.055), transparent 160px), var(--color-surface)",
@@ -37,35 +38,44 @@ export default function Sidebar({
             justifyContent: collapsed ? "center" : "flex-end",
             position: "relative",
             zIndex: 1,
+            transition: "justify-content 0.34s ease",
           }}
         >
           <button
             className="app-sidebar__toggle"
             onClick={() => setCollapsed((c) => !c)}
             style={{
-              background: "rgba(15, 20, 32, 0.78)",
+              background:
+                "linear-gradient(135deg, rgba(255, 210, 74, 0.16), rgba(15, 20, 32, 0.92))",
               border: "1px solid rgba(255, 210, 74, 0.24)",
-              borderRadius: 6,
+              borderRadius: 999,
               color: "var(--color-text)",
               cursor: "pointer",
-              padding: "7px 9px",
+              padding: 0,
               fontWeight: 900,
-              minWidth: 34,
+              width: 38,
+              height: 38,
+              display: "inline-grid",
+              placeItems: "center",
+              boxShadow: "inset 0 1px 0 rgba(255,255,255,0.08), 0 8px 20px rgba(0,0,0,0.22)",
             }}
+            aria-label={collapsed ? "Expandir menu" : "Ocultar menu"}
+            aria-expanded={!collapsed}
             title={collapsed ? "Expandir menú" : "Ocultar menú"}
           >
-            {collapsed ? "->" : "≡"}
+            <span className="app-sidebar__toggle-halo" aria-hidden="true" />
+            <span className="app-sidebar__toggle-icon" aria-hidden="true">
+              {collapsed ? <FiChevronRight size={20} /> : <FiChevronLeft size={20} />}
+            </span>
           </button>
         </div>
 
-        <div style={{ flex: 1, padding: collapsed ? "8px 6px" : "8px 12px", position: "relative", zIndex: 1 }}>
+        <div className="app-sidebar__content" style={{ flex: 1, padding: collapsed ? "8px 6px" : "8px 12px", position: "relative", zIndex: 1 }}>
           {sections.map((section) => (
             <div key={section.title} className="app-sidebar__section" style={{ marginBottom: 16 }}>
-              {!collapsed && (
-                <div className="app-sidebar__section-title">
-                  {section.title}
-                </div>
-              )}
+              <div className="app-sidebar__section-title">
+                {section.title}
+              </div>
 
               <div style={{ display: "grid", gap: 7 }}>
                 {section.items.map((it) => {
@@ -97,13 +107,16 @@ export default function Sidebar({
                         letterSpacing: 0,
                         gap: 10,
                         minHeight: 42,
+                        maxWidth: "100%",
                         position: "relative",
                         overflow: "hidden",
+                        transition:
+                          "transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, padding 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
                       })}
                     >
                       <span className="app-sidebar__active-ball" aria-hidden="true" />
                       <Icon className="app-sidebar__icon" size={18} />
-                      {!collapsed && <span className="app-sidebar__label">{it.label}</span>}
+                      <span className="app-sidebar__label">{it.label}</span>
                     </NavLink>
                   );
                 })}
@@ -119,6 +132,7 @@ export default function Sidebar({
               borderTop: "1px solid rgba(255, 210, 74, 0.16)",
               position: "relative",
               zIndex: 1,
+              transition: "padding 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
             }}
           >
             {footer}
@@ -147,17 +161,63 @@ export default function Sidebar({
         }
 
         .app-sidebar__toggle {
-          transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+          position: relative;
+          overflow: hidden;
+          isolation: isolate;
+          font-size: 0;
+          transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background 180ms ease;
         }
 
         .app-sidebar__toggle:hover {
           border-color: rgba(255, 210, 74, 0.52) !important;
-          box-shadow: 0 0 0 3px rgba(255, 210, 74, 0.08);
+          box-shadow: 0 0 0 3px rgba(255, 210, 74, 0.1), 0 12px 26px rgba(0, 0, 0, 0.26) !important;
           transform: translateY(-1px);
+        }
+
+        .app-sidebar__toggle:active {
+          transform: translateY(0) scale(0.96);
+        }
+
+        .app-sidebar__toggle-halo {
+          position: absolute;
+          inset: 6px;
+          border-radius: 50%;
+          background: rgba(255, 210, 74, 0.14);
+          opacity: 0;
+          transform: scale(0.48);
+          transition: opacity 220ms ease, transform 220ms ease;
+          z-index: -1;
+        }
+
+        .app-sidebar__toggle:hover .app-sidebar__toggle-halo {
+          opacity: 1;
+          transform: scale(1.45);
+        }
+
+        .app-sidebar__toggle-icon {
+          display: grid;
+          place-items: center;
+          font-size: 18px;
+          line-height: 1;
+          transition: transform 260ms cubic-bezier(0.22, 1, 0.36, 1), color 180ms ease;
+        }
+
+        .app-sidebar__toggle:hover .app-sidebar__toggle-icon {
+          color: #ffd24a;
+          transform: translateX(-1px) scale(1.08);
+        }
+
+        .app-sidebar--collapsed .app-sidebar__toggle:hover .app-sidebar__toggle-icon {
+          transform: translateX(1px) scale(1.08);
+        }
+
+        .app-sidebar__content {
+          transition: padding 0.34s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
         .app-sidebar__section {
           animation: sidebarSectionIn 260ms ease-out both;
+          transition: margin 0.34s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
         .app-sidebar__section-title {
@@ -168,10 +228,34 @@ export default function Sidebar({
           font-weight: 850;
           letter-spacing: 1px;
           text-transform: uppercase;
+          max-width: 220px;
+          max-height: 18px;
+          overflow: hidden;
+          opacity: 1;
+          transform: translateX(0);
+          transition:
+            opacity 180ms ease,
+            transform 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+            max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+            max-height 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+            margin-bottom 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .app-sidebar--collapsed .app-sidebar__section-title {
+          max-width: 0;
+          max-height: 0;
+          margin-bottom: 0;
+          opacity: 0;
+          transform: translateX(-10px);
         }
 
         .app-sidebar__link {
           transition: transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
+          will-change: transform;
+        }
+
+        .app-sidebar--collapsed .app-sidebar__link {
+          gap: 0 !important;
         }
 
         .app-sidebar__link:hover {
@@ -236,10 +320,24 @@ export default function Sidebar({
         }
 
         .app-sidebar__label {
+          display: inline-block;
           min-width: 0;
+          max-width: 174px;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          opacity: 1;
+          transform: translateX(0);
+          transition:
+            opacity 190ms ease,
+            transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+            max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .app-sidebar--collapsed .app-sidebar__label {
+          max-width: 0;
+          opacity: 0;
+          transform: translateX(-8px);
         }
 
         @keyframes sidebarSectionIn {

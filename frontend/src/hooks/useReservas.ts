@@ -40,6 +40,7 @@ export function useReservas() {
       usuario?: string;
       cliente?: string;
       actividad?: string;
+      estado_reserva?: string;
     }) => {
       setLoading(true);
       setError(null);

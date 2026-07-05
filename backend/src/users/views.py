@@ -11,11 +11,15 @@ from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from drf_spectacular.utils import extend_schema
 
-from .models import Cliente
+from auth_vap.authentication import AccessTokenAuthentication
+from common_vap.permissions import HasModuleAccess
+
+from .models import Cliente, MODULE_CHOICES, UserAccessProfile
 from .serializers import (
     UserListSerializer,
     UserWriteSerializer,
     UserPasswordResetSerializer,
+    MeSerializer,
     ClienteReadSerializer,
     ClienteWriteSerializer,
 )
@@ -31,6 +35,24 @@ class IsAdminOnly(permissions.BasePermission):
 class IsSuperUserOnly(permissions.BasePermission):
     def has_permission(self, request, view):
         return bool(request.user and request.user.is_superuser)
+
+
+class HasUsersModuleAccess(HasModuleAccess):
+    def has_object_permission(self, request, view, obj):
+        if request.user.is_superuser:
+            return True
+
+        profile = getattr(obj, "access_profile", None)
+        if not profile or profile.created_by_id != request.user.id:
+            return False
+
+        if getattr(obj, "is_superuser", False) and request.method not in permissions.SAFE_METHODS:
+            return False
+
+        if getattr(view, "action", None) == "destroy" and obj == request.user:
+            return False
+
+        return True
 
 
 class IsAdminOrSelf(permissions.BasePermission):
@@ -57,15 +79,27 @@ class IsAdminOrOwnCliente(permissions.BasePermission):
 
 @extend_schema(tags=["Users"])
 class UserViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all().order_by("-date_joined")
+    required_module = "users"
+    queryset = User.objects.select_related("access_profile").all().order_by("-date_joined")
+    authentication_classes = (AccessTokenAuthentication,)
+    permission_classes = (HasUsersModuleAccess,)
 
-    def get_permissions(self):
-        return [IsSuperUserOnly()]
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_superuser:
+            return qs
+        return qs.filter(access_profile__created_by=self.request.user)
 
     def get_serializer_class(self):
         if self.action in ("create", "update", "partial_update"):
             return UserWriteSerializer
         return UserListSerializer
+
+    def perform_create(self, serializer):
+        user = serializer.save()
+        profile, _ = UserAccessProfile.objects.get_or_create(user=user)
+        profile.created_by = self.request.user
+        profile.save(update_fields=["created_by", "updated_at"])
 
     @action(detail=True, methods=["post"], url_path="reset-password")
     def reset_password(self, request, pk=None):
@@ -202,29 +236,79 @@ class ClienteViewSet(viewsets.ModelViewSet):
     tags=["Clientes"],
     description=(
         "Endpoint del perfil del usuario autenticado.\n\n"
-        "- GET: devuelve el Cliente del usuario logueado (lo crea si no existe)\n"
-        "- PATCH/PUT: actualiza su propio Cliente"
+        "- GET: devuelve datos basicos del usuario, modulos y Cliente del usuario logueado\n"
+        "- PATCH/PUT: actualiza su propio usuario y Cliente"
     ),
-    responses=ClienteReadSerializer,
+    request=MeSerializer,
+    responses=MeSerializer,
 )
 class MeView(RetrieveUpdateAPIView):
     permission_classes = [permissions.IsAuthenticated]
-    serializer_class = ClienteWriteSerializer
+    serializer_class = MeSerializer
 
     def get_object(self):
         cliente, _ = Cliente.objects.get_or_create(user=self.request.user)
         return cliente
 
+    def _payload(self, cliente):
+        user = self.request.user
+        profile, _ = UserAccessProfile.objects.get_or_create(user=user)
+        modules = [key for key, _ in MODULE_CHOICES] if user.is_superuser else profile.normalized_modules()
+        role = "superuser" if user.is_superuser else profile.role
+
+        return {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email or "",
+            "is_staff": user.is_staff,
+            "is_superuser": user.is_superuser,
+            "role": role,
+            "modules": modules,
+            "nombre": cliente.nombre,
+            "apellido": cliente.apellido,
+            "telefono": cliente.telefono,
+            "documento": cliente.documento,
+            "notas": cliente.notas,
+        }
+
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        return Response(ClienteReadSerializer(instance).data)
+        return Response(self._payload(instance))
 
     def update(self, request, *args, **kwargs):
         partial = kwargs.pop("partial", False)
-        instance = self.get_object()
+        cliente = self.get_object()
+        user = request.user
 
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer = self.get_serializer(data=request.data, partial=partial)
         serializer.is_valid(raise_exception=True)
-        serializer.save()
+        data = serializer.validated_data
 
-        return Response(ClienteReadSerializer(instance).data)
+        username = data.pop("username", None)
+        email = data.pop("email", None)
+        password = data.pop("password", None)
+
+        if username is not None:
+            username = username.strip()
+            if not username:
+                raise ValidationError({"username": "Este campo es obligatorio."})
+            if User.objects.exclude(pk=user.pk).filter(username=username).exists():
+                raise ValidationError({"username": "Este usuario ya existe."})
+            user.username = username
+
+        if email is not None:
+            user.email = email.strip()
+
+        if password:
+            user.set_password(password)
+
+        if username is not None or email is not None or password:
+            user.save()
+
+        for field in ("nombre", "apellido", "telefono", "documento", "notas"):
+            if field in data:
+                setattr(cliente, field, data[field])
+
+        cliente.save()
+
+        return Response(self._payload(cliente))

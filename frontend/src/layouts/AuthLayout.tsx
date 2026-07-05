@@ -1,4 +1,4 @@
-import { Outlet, useNavigate } from "react-router-dom";
+import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { PATHS } from "../router/paths";
 
@@ -19,8 +19,15 @@ import {
   FiMap,
   FiShield,
   FiFileText,
+  FiLogOut,
+  FiUser,
   FiUsers,
 } from "react-icons/fi";
+
+function getInitials(value?: string) {
+  const source = (value ?? "U").trim();
+  return source.slice(0, 2).toUpperCase();
+}
 
 export default function AuthLayout() {
   const { user, logout } = useAuth();
@@ -77,12 +84,21 @@ export default function AuthLayout() {
     >
       <Header
         rightSlot={
-          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-            <span style={{ opacity: 0.85 }}>
-              {user?.username} {user?.role ? `/${user.role}` : ""}
-            </span>
-            <Button variant="danger" onClick={onLogout}>
-              Salir
+          <div className="app-header-actions">
+            <Link className="app-header-user" to={PATHS.me} title="Editar mi perfil">
+              <span className="app-header-user__avatar" aria-hidden="true">{getInitials(user?.username)}</span>
+              <span className="app-header-user__text">
+                <span className="app-header-user__name">{user?.username ?? "Usuario"}</span>
+                <span className="app-header-user__role">
+                  <FiUser size={12} />
+                  {user?.role || "Sin rol"}
+                </span>
+              </span>
+            </Link>
+
+            <Button className="app-header-logout" variant="danger" onClick={onLogout} title="Salir">
+              <FiLogOut size={16} />
+              <span>Salir</span>
             </Button>
           </div>
         }

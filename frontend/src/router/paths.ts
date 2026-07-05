@@ -1,6 +1,7 @@
 export const PATHS = {
   login: "/login",
   app: "/",
+  me: "/me",
 
   availability: "/availability",
 

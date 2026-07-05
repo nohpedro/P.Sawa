@@ -235,6 +235,7 @@ export default function UserRolesPage() {
     } catch (err) {
       const message = getErrorMessage(err, "No se pudo crear usuario.");
       setError(message);
+      setModalMode(null);
       setToast({ open: true, message, type: "error" });
     } finally {
       setLoading(false);
@@ -331,7 +332,7 @@ export default function UserRolesPage() {
     <div style={{ display: "grid", gap: 18 }}>
       <Card
         title="Usuarios y roles"
-        subtitle="Solo el superusuario puede crear usuarios y asignar modulos visibles."
+        subtitle="Gestiona usuarios y modulos visibles segun los accesos asignados."
         rightSlot={
           <div style={{ display: "flex", gap: 10 }}>
             <Button onClick={openCreate}>+ Nuevo usuario</Button>

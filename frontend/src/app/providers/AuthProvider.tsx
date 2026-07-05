@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useEffect, useMemo, useState } from "react";
 import authService from "../../services/auth.service";
 import type { AuthState, LoginRequest, LoginResponse } from "../../models/auth";
+import meService from "../../services/me.service";
 
 interface AuthContextValue extends AuthState {
   login: (payload: LoginRequest) => Promise<LoginResponse>;
@@ -36,6 +37,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Al montar la app: carga sesión desde localStorage
     refreshFromStorage();
   }, [refreshFromStorage]);
+
+  useEffect(() => {
+    if (!state.accessToken) return;
+
+    let active = true;
+    const syncUser = async () => {
+      try {
+        const profile = await meService.get();
+        if (!active) return;
+
+        authService.setUser({
+          id: profile.id,
+          username: profile.username,
+          email: profile.email,
+          is_staff: profile.is_staff,
+          is_superuser: profile.is_superuser,
+          role: profile.role,
+          modules: profile.modules ?? [],
+        });
+
+        setState((current) => ({
+          ...current,
+          user: authService.getUser(),
+        }));
+      } catch {
+        // Las rutas protegidas y las llamadas autenticadas mantienen el flujo si el token vence.
+      }
+    };
+
+    void syncUser();
+
+    return () => {
+      active = false;
+    };
+  }, [state.accessToken]);
 
   const login = useCallback(async (payload: LoginRequest) => {
     setState((s) => ({ ...s, loading: false }));

@@ -68,6 +68,28 @@ function cleanDraft(draft: ClienteWriteDTO): ClienteWriteDTO {
   };
 }
 
+function missingRequiredFields(draft: ClienteWriteDTO): string[] {
+  const missing: string[] = [];
+  if (!draft.nombre.trim()) missing.push("Nombre");
+  if (!draft.apellido.trim()) missing.push("Apellido");
+  return missing;
+}
+
+function missingOptionalFields(draft: ClienteWriteDTO): string[] {
+  const missing: string[] = [];
+  if (!draft.telefono.trim()) missing.push("Telefono");
+  if (!draft.documento.trim()) missing.push("Documento");
+  if (!draft.notas.trim()) missing.push("Notas");
+  return missing;
+}
+
+function customerSavedMessage(action: "created" | "updated", payload: ClienteWriteDTO): string {
+  const pending = missingOptionalFields(payload);
+  const base = action === "created" ? "Cliente creado correctamente." : "Cliente actualizado correctamente.";
+  if (pending.length === 0) return base;
+  return `${base} Datos opcionales pendientes: ${pending.join(", ")}.`;
+}
+
 export default function CustomersPage() {
   const clientes = useClientes();
 
@@ -129,8 +151,9 @@ export default function CustomersPage() {
 
   const onCreate = async () => {
     const payload = cleanDraft(draft);
-    if (!payload.nombre && !payload.apellido) {
-      setToast({ open: true, message: "Ingresa al menos nombre o apellido.", type: "error" });
+    const missing = missingRequiredFields(payload);
+    if (missing.length > 0) {
+      setToast({ open: true, message: `Faltan datos obligatorios: ${missing.join(", ")}.`, type: "error" });
       return;
     }
 
@@ -139,7 +162,7 @@ export default function CustomersPage() {
       setSelected(created);
       setDraft(emptyForm);
       setModalMode(null);
-      setToast({ open: true, message: "Cliente creado correctamente.", type: "success" });
+      setToast({ open: true, message: customerSavedMessage("created", payload), type: "success" });
       setPage(1);
       await clientes.list({ page: "1", page_size: String(PAGE_SIZE) });
     } catch (err) {
@@ -150,8 +173,9 @@ export default function CustomersPage() {
   const onSave = async () => {
     if (!selected) return;
     const payload = cleanDraft(draft);
-    if (!payload.nombre && !payload.apellido) {
-      setToast({ open: true, message: "Ingresa al menos nombre o apellido.", type: "error" });
+    const missing = missingRequiredFields(payload);
+    if (missing.length > 0) {
+      setToast({ open: true, message: `Faltan datos obligatorios: ${missing.join(", ")}.`, type: "error" });
       return;
     }
 
@@ -159,7 +183,7 @@ export default function CustomersPage() {
       const updated = await clientes.patch(selected.id, payload);
       setSelected(updated);
       setModalMode(null);
-      setToast({ open: true, message: "Cliente actualizado correctamente.", type: "success" });
+      setToast({ open: true, message: customerSavedMessage("updated", payload), type: "success" });
       await refresh();
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo actualizar el cliente."), type: "error" });
@@ -196,6 +220,9 @@ export default function CustomersPage() {
     (evt: ChangeEvent<HTMLInputElement>) => {
       setDraft((current) => ({ ...current, [key]: evt.target.value }));
     };
+
+  const requiredErrors = modalMode ? missingRequiredFields(draft) : [];
+  const hasMissingRequired = requiredErrors.length > 0;
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -363,19 +390,51 @@ export default function CustomersPage() {
                   </div>
                 ) : null}
 
+
+
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-                  <Input label="Nombre" value={draft.nombre} onChange={setDraftField("nombre")} placeholder="Ej: Juan" />
-                  <Input label="Apellido" value={draft.apellido} onChange={setDraftField("apellido")} placeholder="Ej: Perez" />
+                  <Input
+                    label="Nombre *"
+                    value={draft.nombre}
+                    onChange={setDraftField("nombre")}
+                    placeholder="Ej: Juan"
+                    error={modalMode && !draft.nombre.trim() ? "Obligatorio" : undefined}
+                  />
+                  <Input
+                    label="Apellido *"
+                    value={draft.apellido}
+                    onChange={setDraftField("apellido")}
+                    placeholder="Ej: Perez"
+                    error={modalMode && !draft.apellido.trim() ? "Obligatorio" : undefined}
+                  />
                 </div>
 
-                <Input label="Telefono" value={draft.telefono} onChange={setDraftField("telefono")} placeholder="Ej: 76543210" />
-                <Input label="Documento" value={draft.documento} onChange={setDraftField("documento")} placeholder="CI / NIT" />
-                <Input label="Notas" value={draft.notas} onChange={setDraftField("notas")} placeholder="Opcional" />
+                <Input
+                  label="Telefono (opcional)"
+                  value={draft.telefono}
+                  onChange={setDraftField("telefono")}
+                  placeholder="Ej: 76543210"
+                  hint={!draft.telefono.trim() ? "Puedes completarlo despues." : undefined}
+                />
+                <Input
+                  label="Documento (opcional)"
+                  value={draft.documento}
+                  onChange={setDraftField("documento")}
+                  placeholder="CI / NIT"
+                  hint={!draft.documento.trim() ? "Puedes completarlo despues." : undefined}
+                />
+                <Input
+                  label="Notas (opcional)"
+                  value={draft.notas}
+                  onChange={setDraftField("notas")}
+                  placeholder="Preferencias u observaciones"
+                  hint={!draft.notas.trim() ? "Puedes completarlo despues." : undefined}
+                />
 
                 <div style={{ display: "flex", gap: 10 }}>
                   <Button
                     onClick={() => void (modalMode === "create" ? onCreate() : onSave())}
-                    disabled={clientes.loading || (!draft.nombre.trim() && !draft.apellido.trim())}
+                    disabled={clientes.loading || hasMissingRequired}
                     fullWidth
                   >
                     {clientes.loading ? <Loader label="Guardando..." /> : modalMode === "create" ? "Crear cliente" : "Guardar"}

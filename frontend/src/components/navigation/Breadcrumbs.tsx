@@ -5,6 +5,8 @@ function labelFor(path: string) {
   switch (path) {
     case PATHS.availability:
       return "Disponibilidad";
+    case PATHS.me:
+      return "Mi cuenta";
     case PATHS.adminEspacios:
       return "Espacios";
     case PATHS.adminActividades:

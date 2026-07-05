@@ -88,6 +88,10 @@ export class AuthService {
     }
   }
 
+  setUser(user: AuthUser): void {
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
+  }
+
   clearSession(): void {
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);

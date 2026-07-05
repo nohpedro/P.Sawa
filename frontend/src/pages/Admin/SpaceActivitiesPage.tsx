@@ -89,6 +89,15 @@ function toGraphPoint(evt: PointerEvent<HTMLElement>, rect: DOMRect, zoomValue: 
   };
 }
 
+function upsertRelation(relaciones: EspacioActividad[], relation: EspacioActividad): EspacioActividad[] {
+  const currentIndex = relaciones.findIndex((rel) => rel.id === relation.id);
+  if (currentIndex === -1) return [...relaciones, relation];
+
+  const next = [...relaciones];
+  next[currentIndex] = relation;
+  return next;
+}
+
 function relationForActivity(relaciones: EspacioActividad[], activityId: string): EspacioActividad | null {
   return relaciones.find((rel) => rel.tipo === activityId) ?? null;
 }
@@ -120,8 +129,8 @@ export default function SpaceActivitiesPage() {
   const [precio, setPrecio] = useState("70.00");
 
   useEffect(() => {
-    espacios.list({ page: "1" }).catch(() => {});
-    tipos.list({ page: "1" }).catch(() => {});
+    espacios.list({ page: "1", page_size: "200" }).catch(() => {});
+    tipos.list({ page: "1", page_size: "200" }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -142,6 +151,12 @@ export default function SpaceActivitiesPage() {
     return actividadesList.filter((activity) => `${activity.nombre} ${activity.descripcion ?? ""}`.toLowerCase().includes(q));
   }, [actividadesList, activityQuery]);
 
+  const activityIndexById = useMemo(() => {
+    const next = new Map<string, number>();
+    actividadesFiltradas.forEach((activity, index) => next.set(activity.id, index));
+    return next;
+  }, [actividadesFiltradas]);
+
   useEffect(() => {
     setActivityPositions((current) => {
       const next = { ...current };
@@ -160,8 +175,10 @@ export default function SpaceActivitiesPage() {
 
   const refreshRelaciones = async (spaceId = espacioSel?.id) => {
     if (!spaceId) return;
-    const res = await ea.list({ page: "1", espacio: spaceId });
-    setRelaciones(res.results ?? []);
+    const res = await ea.list({ page: "1", page_size: "200", espacio: spaceId });
+    const next = res.results ?? [];
+    setRelaciones(next);
+    return next;
   };
 
   const openGraph = async (space: Espacio) => {
@@ -280,7 +297,7 @@ export default function SpaceActivitiesPage() {
     if (!espacioSel?.id || !pendingActivity?.id) return;
 
     try {
-      await ea.create({
+      const created = await ea.create({
         espacio: espacioSel.id,
         tipo: pendingActivity.id,
         duracion_minutos: Math.max(1, Number(duracion) || 1),
@@ -289,8 +306,18 @@ export default function SpaceActivitiesPage() {
       });
 
       setToast({ open: true, message: "Actividad asignada al espacio.", type: "success" });
+      setRelaciones((current) => upsertRelation(current, created));
+      setActivityPositions((current) => ({
+        ...current,
+        [pendingActivity.id]:
+          current[pendingActivity.id] ??
+          getActivityPoint(activityIndexById.get(pendingActivity.id) ?? actividadesFiltradas.length - 1, actividadesFiltradas.length),
+      }));
       setPendingActivity(null);
-      await refreshRelaciones(espacioSel.id);
+      const refreshed = await refreshRelaciones(espacioSel.id);
+      if (!refreshed?.some((relation) => relation.id === created.id)) {
+        setRelaciones((current) => upsertRelation(current, created));
+      }
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo asignar la actividad."), type: "error" });
     }
@@ -493,9 +520,9 @@ export default function SpaceActivitiesPage() {
                     height: graphHeight * zoom,
                     pointerEvents: "none",
                   }}
-                >
+                  >
                   <defs>
-                    <linearGradient id="assignedLine" x1="0" x2="1" y1="0" y2="0">
+                    <linearGradient id="assignedLine" gradientUnits="userSpaceOnUse" x1="0" x2={graphWidth} y1="0" y2="0">
                       <stop offset="0%" stopColor="#ffd24a" />
                       <stop offset="100%" stopColor="#8ee59f" />
                     </linearGradient>
@@ -522,7 +549,7 @@ export default function SpaceActivitiesPage() {
                           stroke="url(#assignedLine)"
                           strokeWidth="5"
                           strokeLinecap="round"
-                          strokeDasharray={rel.activo ? "0" : "10 10"}
+                          strokeDasharray={rel.activo ? undefined : "10 10"}
                         />
                         <circle cx={line.to.x} cy={line.to.y} r="7" fill="#8ee59f" />
                       </g>

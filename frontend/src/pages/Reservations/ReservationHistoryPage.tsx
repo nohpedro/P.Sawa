@@ -6,11 +6,24 @@ import Select from "../../components/ui/Select";
 import Button from "../../components/ui/Button";
 import Loader from "../../components/ui/Loader";
 import { useReservas } from "../../hooks/useReservas";
+import { useEspacios } from "../../hooks/useEspacios";
+import { useTiposActividad } from "../../hooks/useTiposActividad";
+import { useClientes } from "../../hooks/useClientes";
 import { formatHHMM, toYYYYMMDD } from "../../utils/date";
 import type { Reserva } from "../../models/reserva";
 
 type Option = { label: string; value: string };
 type MetricRow = { label: string; value: number; detail?: string };
+type HistoryFilters = {
+  desde: string;
+  hasta: string;
+  espacio: string;
+  actividad: string;
+  cliente: string;
+  estado: string;
+};
+
+const PAGE_SIZE = 25;
 
 const panelStyle: CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -328,6 +341,9 @@ function FilterChips({ items }: { items: Array<{ label: string; value: string }>
 
 export default function ReservationHistoryPage() {
   const reservas = useReservas();
+  const espacios = useEspacios();
+  const tipos = useTiposActividad();
+  const clientes = useClientes();
   const today = useMemo(() => new Date(), []);
   const [desde, setDesde] = useState(() => toYYYYMMDD(addDays(today, -30)));
   const [hasta, setHasta] = useState(() => toYYYYMMDD(today));
@@ -336,64 +352,88 @@ export default function ReservationHistoryPage() {
   const [cliente, setCliente] = useState("");
   const [estado, setEstado] = useState("");
   const [chartsOpen, setChartsOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [totalReservas, setTotalReservas] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
 
-  const load = async () => {
-    await reservas.list({
-      page: "1",
-      page_size: "200",
-      desde,
-      hasta,
-      espacio: espacio || undefined,
-      actividad: actividad || undefined,
+  const load = async (targetPage = page, overrides?: Partial<HistoryFilters>) => {
+    const filters = { desde, hasta, espacio, actividad, cliente, estado, ...overrides };
+    const res = await reservas.list({
+      page: String(targetPage),
+      page_size: String(PAGE_SIZE),
+      desde: filters.desde,
+      hasta: filters.hasta,
+      espacio: filters.espacio || undefined,
+      actividad: filters.actividad || undefined,
+      cliente: filters.cliente || undefined,
+      estado_reserva: filters.estado || undefined,
     });
+    setTotalReservas(res.count ?? 0);
+    setHasNextPage(Boolean(res.next));
+    setHasPreviousPage(Boolean(res.previous));
     setChartsOpen(false);
   };
 
   useEffect(() => {
-    load().catch(() => {});
+    espacios.list({ page: "1", page_size: "200" }).catch(() => {});
+    tipos.list({ page: "1", page_size: "200" }).catch(() => {});
+    clientes.list({ page: "1", page_size: "200" }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  useEffect(() => {
+    load(page).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page]);
+
   const rows = useMemo(() => reservas.data?.results ?? [], [reservas.data?.results]);
+  const espaciosList = useMemo(() => espacios.data?.results ?? [], [espacios.data?.results]);
+  const actividadesList = useMemo(() => (tipos.data?.results ?? []).filter((activity) => activity.activo), [tipos.data?.results]);
+  const clientesList = useMemo(() => clientes.data?.results ?? [], [clientes.data?.results]);
 
   const espacioOptions = useMemo(
-    () => [{ label: "Todos los espacios", value: "" }, ...uniqueOptions(rows, (row) => row.espacio, (row) => row.espacio_nombre ?? row.espacio)],
-    [rows]
+    () => [
+      { label: "Todos los espacios", value: "" },
+      ...(espaciosList.length
+        ? espaciosList.map((space) => ({ label: space.nombre, value: space.id }))
+        : uniqueOptions(rows, (row) => row.espacio, (row) => row.espacio_nombre ?? row.espacio)),
+    ],
+    [espaciosList, rows]
   );
 
   const actividadOptions = useMemo(
-    () => [{ label: "Todas las actividades", value: "" }, ...uniqueOptions(rows, (row) => row.actividad, (row) => row.actividad_nombre ?? row.actividad)],
-    [rows]
+    () => [
+      { label: "Todas las actividades", value: "" },
+      ...(actividadesList.length
+        ? actividadesList.map((activity) => ({ label: activity.nombre, value: activity.id }))
+        : uniqueOptions(rows, (row) => row.actividad, (row) => row.actividad_nombre ?? row.actividad)),
+    ],
+    [actividadesList, rows]
   );
 
   const clienteOptions = useMemo(
     () => [
       { label: "Todos los clientes", value: "" },
-      ...uniqueOptions(rows, (row) => optionKey(clienteName(row), String(row.usuario)), clienteName),
+      ...(clientesList.length
+        ? clientesList.map((client) => ({
+            label: `${client.nombre} ${client.apellido}`.trim() || client.username,
+            value: client.id,
+          }))
+        : uniqueOptions(rows, (row) => row.cliente ?? optionKey(clienteName(row), String(row.usuario)), clienteName)),
     ],
-    [rows]
+    [clientesList, rows]
   );
 
-  const estadoOptions = useMemo(
-    () => [
-      { label: "Todos los estados", value: "" },
-      ...uniqueOptions(rows, (row) => row.estado_reserva, (row) => row.estado_reserva),
-    ],
-    [rows]
-  );
+  const estadoOptions = [
+    { label: "Todos los estados", value: "" },
+    { label: "Pendiente", value: "PENDIENTE" },
+    { label: "Confirmada", value: "CONFIRMADA" },
+    { label: "Cancelada", value: "CANCELADA" },
+    { label: "Finalizada", value: "FINALIZADA" },
+  ];
 
-  const filtered = useMemo(() => {
-    return rows.filter((reserva) => {
-      const day = reservaDate(reserva);
-      if (desde && day < desde) return false;
-      if (hasta && day > hasta) return false;
-      if (espacio && reserva.espacio !== espacio) return false;
-      if (actividad && reserva.actividad !== actividad) return false;
-      if (cliente && optionKey(clienteName(reserva), String(reserva.usuario)) !== cliente) return false;
-      if (estado && reserva.estado_reserva !== estado) return false;
-      return true;
-    });
-  }, [actividad, cliente, desde, espacio, estado, hasta, rows]);
+  const filtered = rows;
 
   const totalMonto = useMemo(() => filtered.reduce((sum, reserva) => sum + money(reserva.monto_estimado), 0), [filtered]);
   const totalMinutos = useMemo(() => filtered.reduce((sum, reserva) => sum + (reserva.duracion_minutos ?? 0), 0), [filtered]);
@@ -422,14 +462,38 @@ export default function ReservationHistoryPage() {
   }, [actividad, actividadOptions, cliente, clienteOptions, desde, espacio, espacioOptions, estado, estadoOptions, hasta]);
 
   const resetFilters = () => {
-    setDesde(toYYYYMMDD(addDays(today, -30)));
-    setHasta(toYYYYMMDD(today));
+    const nextFilters = {
+      desde: toYYYYMMDD(addDays(today, -30)),
+      hasta: toYYYYMMDD(today),
+      espacio: "",
+      actividad: "",
+      cliente: "",
+      estado: "",
+    };
+    setDesde(nextFilters.desde);
+    setHasta(nextFilters.hasta);
     setEspacio("");
     setActividad("");
     setCliente("");
     setEstado("");
     setChartsOpen(false);
+    if (page === 1) {
+      load(1, nextFilters).catch(() => {});
+      return;
+    }
+    setPage(1);
   };
+
+  const applyFilters = () => {
+    if (page === 1) {
+      load(1).catch(() => {});
+      return;
+    }
+    setPage(1);
+  };
+
+  const pageStart = totalReservas === 0 || filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = totalReservas === 0 || filtered.length === 0 ? 0 : Math.min((page - 1) * PAGE_SIZE + filtered.length, totalReservas);
 
   const downloadCsv = () => {
     const headers = ["Dia", "Cliente", "Espacio", "Actividad", "Inicio", "Fin", "Minutos", "Monto Bs", "Estado", "Notas"];
@@ -468,22 +532,22 @@ export default function ReservationHistoryPage() {
         rightSlot={
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={downloadCsv} disabled={filtered.length === 0}>
-              Descargar CSV
+              CSV pagina
             </Button>
             <Button onClick={() => setChartsOpen(true)} disabled={filtered.length === 0}>
-              Generar Graficos
+              Graficos pagina
             </Button>
-            <Button variant="outline" onClick={() => void load()} disabled={reservas.loading}>
+            <Button variant="outline" onClick={applyFilters} disabled={reservas.loading}>
               Aplicar filtros
             </Button>
           </div>
         }
       >
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))", gap: 10 }}>
-          <div style={panelStyle}>Reservas: <b>{filtered.length}</b></div>
-          <div style={panelStyle}>Minutos: <b>{totalMinutos}</b></div>
-          <div style={panelStyle}>Horas: <b>{(totalMinutos / 60).toFixed(2)}</b></div>
-          <div style={panelStyle}>Monto: <b>Bs {totalMonto.toFixed(2)}</b></div>
+          <div style={panelStyle}>Reservas: <b>{totalReservas}</b></div>
+          <div style={panelStyle}>Pagina: <b>{page}</b></div>
+          <div style={panelStyle}>Minutos pagina: <b>{totalMinutos}</b></div>
+          <div style={panelStyle}>Monto pagina: <b>Bs {totalMonto.toFixed(2)}</b></div>
         </div>
       </Card>
 
@@ -495,7 +559,7 @@ export default function ReservationHistoryPage() {
           <Select label="Actividad" options={actividadOptions} value={actividad} onChange={(e) => setActividad(e.target.value)} />
           <Select label="Cliente" options={clienteOptions} value={cliente} onChange={(e) => setCliente(e.target.value)} />
           <Select label="Estado" options={estadoOptions} value={estado} onChange={(e) => setEstado(e.target.value)} />
-          <Button onClick={() => void load()} disabled={reservas.loading}>
+          <Button onClick={applyFilters} disabled={reservas.loading}>
             {reservas.loading ? <Loader label="Cargando..." /> : "Aplicar"}
           </Button>
           <Button variant="outline" onClick={resetFilters} disabled={reservas.loading}>
@@ -539,6 +603,20 @@ export default function ReservationHistoryPage() {
             <div style={{ padding: 16, color: "var(--color-text-muted)" }}>No hay reservas con esos filtros.</div>
           )}
         </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", marginTop: 14, flexWrap: "wrap" }}>
+          <span style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
+            {totalReservas === 0 ? "Sin reservas" : `Reservas ${pageStart}-${pageEnd} de ${totalReservas}`}
+          </span>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={!hasPreviousPage || reservas.loading}>
+              Anterior
+            </Button>
+            <Button variant="outline" onClick={() => setPage((value) => value + 1)} disabled={!hasNextPage || reservas.loading}>
+              Siguiente
+            </Button>
+          </div>
+        </div>
       </Card>
 
       {chartsOpen &&
@@ -577,7 +655,7 @@ export default function ReservationHistoryPage() {
               <div style={{ display: "flex", justifyContent: "space-between", gap: 14, alignItems: "start", marginBottom: 16 }}>
                 <div>
                   <h2 id="history-charts-title" style={{ margin: 0, fontSize: 22, fontWeight: 950 }}>
-                    Graficos del historial
+                    Graficos de la pagina
                   </h2>
                   <FilterChips items={selectedFilterItems} />
                 </div>

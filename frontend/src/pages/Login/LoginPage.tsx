@@ -193,7 +193,7 @@ export default function LoginPage() {
         className={`login-shell${isSubmitting ? " login-shell--match" : ""}`}
         style={{ width: 420, maxWidth: "100%" }}
       >
-        <Card title="INICIO DE SESIÓN" subtitle="Accede a Sawa" style={{ width: "100%" }}>
+        <Card title="INICIO DE SESIÓN" subtitle="Accede a Wally Sas" style={{ width: "100%" }}>
           <form
             onSubmit={onSubmit}
             className={isSubmitting ? "login-form--match" : undefined}

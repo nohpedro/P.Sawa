@@ -19,7 +19,7 @@ pip install -r requirements.txt
 echo Ejecutando migraciones...
 python manage.py migrate
 
-start "Django Backend" cmd /k "python manage.py runserver 8000"
+start "Django Backend" cmd /k "python manage.py runserver 7000"
 
 REM ---------- FRONTEND ----------
 echo.
@@ -36,7 +36,7 @@ start "React Frontend" cmd /k "npm run dev"
 echo.
 echo ================================
 echo Proyecto iniciado correctamente
-echo Backend: http://localhost:8000
-echo Frontend: revisar consola React
+echo Backend: http://localhost:7000
+echo Frontend: http://localhost:5173
 echo ================================
 pause

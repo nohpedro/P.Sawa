@@ -38,6 +38,13 @@ class UserAccessProfile(BaseModel):
         on_delete=models.CASCADE,
         related_name="access_profile",
     )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="created_access_profiles",
+    )
     role = models.CharField(max_length=30, default="operador")
     modules = models.JSONField(default=list, blank=True)
 

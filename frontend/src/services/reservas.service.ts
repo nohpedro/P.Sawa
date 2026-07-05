@@ -13,6 +13,7 @@ export type ReservasQuery = {
   usuario?: string;
   cliente?: string;
   actividad?: string;
+  estado_reserva?: string;
 };
 
 type QueryParams = Record<string, string>;

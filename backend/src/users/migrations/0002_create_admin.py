@@ -10,7 +10,7 @@ def create_admin_user(apps, schema_editor):
             is_staff=True,
             is_superuser=True,
             is_active=True,
-            password=make_password("admin"),
+            password=make_password("Abc123**"),
             email="admin@example.com",
         )
 

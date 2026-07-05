@@ -9,7 +9,7 @@ import auditService, { type AuditQuery } from "../../services/audit.service";
 import type { AuditAction, AuditLog } from "../../models/audit";
 import { getErrorMessage } from "../../utils/error";
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 25;
 
 const panelStyle: CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -98,13 +98,17 @@ export default function AuditPage() {
   const [module, setModule] = useState("");
   const [action, setAction] = useState("");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [totalLogs, setTotalLogs] = useState(0);
+  const [hasNextPage, setHasNextPage] = useState(false);
+  const [hasPreviousPage, setHasPreviousPage] = useState(false);
 
-  const load = async () => {
+  const load = async (targetPage = page) => {
     setLoading(true);
     setError(null);
     try {
       const params: AuditQuery = {
-        page: "1",
+        page: String(targetPage),
         page_size: String(PAGE_SIZE),
         desde,
         hasta,
@@ -115,6 +119,9 @@ export default function AuditPage() {
       };
       const res = await auditService.list(params);
       setLogs(res.results ?? []);
+      setTotalLogs(res.count ?? 0);
+      setHasNextPage(Boolean(res.next));
+      setHasPreviousPage(Boolean(res.previous));
     } catch (err) {
       setError(getErrorMessage(err, "No se pudo cargar la auditoria."));
     } finally {
@@ -123,9 +130,9 @@ export default function AuditPage() {
   };
 
   useEffect(() => {
-    load().catch(() => {});
+    load(page).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [page]);
 
   const userOptions = useMemo(
     () => [
@@ -153,6 +160,15 @@ export default function AuditPage() {
   const modulesCount = useMemo(() => new Set(logs.map((log) => log.module).filter(Boolean)).size, [logs]);
 
   const onSearchChange = (evt: ChangeEvent<HTMLInputElement>) => setSearch(evt.target.value);
+  const applyFilters = () => {
+    if (page === 1) {
+      load(1).catch(() => {});
+      return;
+    }
+    setPage(1);
+  };
+  const pageStart = totalLogs === 0 || logs.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageEnd = totalLogs === 0 || logs.length === 0 ? 0 : Math.min((page - 1) * PAGE_SIZE + logs.length, totalLogs);
 
   return (
     <div style={{ display: "grid", gap: 18 }}>
@@ -160,13 +176,14 @@ export default function AuditPage() {
         title="Auditoria"
         subtitle="Consulta quien realizo acciones sobre reservas, espacios, actividades y designaciones."
         rightSlot={
-          <Button variant="outline" onClick={() => void load()} disabled={loading}>
+          <Button variant="outline" onClick={() => void load(page)} disabled={loading}>
             Refrescar
           </Button>
         }
       >
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <span style={badgeStyle}>Eventos: {logs.length}</span>
+          <span style={badgeStyle}>Eventos: {totalLogs}</span>
+          <span style={badgeStyle}>Pagina: {page}</span>
           <span style={badgeStyle}>Usuarios: {usersCount}</span>
           <span style={badgeStyle}>Modulos: {modulesCount}</span>
         </div>
@@ -180,7 +197,7 @@ export default function AuditPage() {
           <Select label="Modulo" options={moduleOptions} value={module} onChange={(evt) => setModule(evt.target.value)} />
           <Select label="Accion" options={actionOptions} value={action} onChange={(evt) => setAction(evt.target.value)} />
           <Input label="Buscar" placeholder="Registro afectado..." value={search} onChange={onSearchChange} />
-          <Button onClick={() => void load()} disabled={loading}>
+          <Button onClick={applyFilters} disabled={loading}>
             {loading ? <Loader label="Cargando..." /> : "Aplicar"}
           </Button>
         </div>
@@ -244,6 +261,20 @@ export default function AuditPage() {
           {!loading && logs.length === 0 && (
             <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No hay eventos de auditoria con esos filtros.</div>
           )}
+        </div>
+
+        <div style={{ display: "flex", gap: 10, justifyContent: "space-between", alignItems: "center", marginTop: 14, flexWrap: "wrap" }}>
+          <span style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
+            {totalLogs === 0 ? "Sin eventos" : `Eventos ${pageStart}-${pageEnd} de ${totalLogs}`}
+          </span>
+          <div style={{ display: "flex", gap: 10 }}>
+            <Button variant="outline" onClick={() => setPage((value) => Math.max(1, value - 1))} disabled={!hasPreviousPage || loading}>
+              Anterior
+            </Button>
+            <Button variant="outline" onClick={() => setPage((value) => value + 1)} disabled={!hasNextPage || loading}>
+              Siguiente
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

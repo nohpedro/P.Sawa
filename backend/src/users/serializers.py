@@ -104,6 +104,22 @@ class UserPasswordResetSerializer(serializers.Serializer):
     password = serializers.CharField(required=False, allow_blank=True, min_length=4)
 
 
+class MeSerializer(serializers.Serializer):
+    id = serializers.IntegerField(read_only=True)
+    username = serializers.CharField(required=True)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    password = serializers.CharField(required=False, allow_blank=True, min_length=4, write_only=True)
+    is_staff = serializers.BooleanField(read_only=True)
+    is_superuser = serializers.BooleanField(read_only=True)
+    role = serializers.CharField(read_only=True)
+    modules = serializers.ListField(child=serializers.CharField(), read_only=True)
+    nombre = serializers.CharField(required=False, allow_blank=True)
+    apellido = serializers.CharField(required=False, allow_blank=True)
+    telefono = serializers.CharField(required=False, allow_blank=True)
+    documento = serializers.CharField(required=False, allow_blank=True)
+    notas = serializers.CharField(required=False, allow_blank=True)
+
+
 # =====================================================
 # CLIENTE SERIALIZERS
 # =====================================================

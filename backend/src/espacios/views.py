@@ -1,5 +1,6 @@
 # src/espacios/views.py
 from datetime import datetime, time as dtime
+from decimal import Decimal, ROUND_HALF_UP
 
 from django.utils.dateparse import parse_date
 from django.utils import timezone
@@ -125,7 +126,10 @@ class EspacioActividadViewSet(AuditLogMixin, viewsets.ModelViewSet):
     filterset_fields = ("activo", "espacio", "tipo")
 
     def get_audit_summary(self, instance):
-        return f"{instance.espacio} con actividad {instance.tipo}"
+        return (
+            f"{instance.espacio} con actividad {instance.tipo} "
+            f"({instance.duracion_minutos} min / precio base Bs {instance.precio_base})"
+        )
 
     def get_audit_field_labels(self):
         return {
@@ -290,11 +294,32 @@ class ReservaViewSet(AuditLogMixin, viewsets.ModelViewSet):
     ordering_fields = ("inicio", "fin", "created_at")
     filterset_fields = ("espacio", "estado_reserva", "actividad", "cliente", "usuario")
 
+    def _get_reserva_monto(self, instance):
+        if not instance.inicio or not instance.fin or instance.fin <= instance.inicio:
+            return Decimal("0.00")
+
+        relacion = (
+            EspacioActividad.objects
+            .filter(espacio=instance.espacio, tipo=instance.actividad, activo=True)
+            .first()
+        )
+        if not relacion or relacion.duracion_minutos <= 0:
+            return Decimal("0.00")
+
+        minutos = Decimal(str((instance.fin - instance.inicio).total_seconds())) / Decimal(60)
+        bloques = minutos / Decimal(relacion.duracion_minutos)
+        total = bloques * relacion.precio_base
+        return total.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
     def get_audit_summary(self, instance):
         cliente = getattr(instance.cliente, "__str__", None)
         cliente_label = str(instance.cliente) if cliente else instance.usuario.get_username()
         inicio = timezone.localtime(instance.inicio).strftime("%d/%m/%Y %H:%M") if instance.inicio else ""
-        return f"reserva de {cliente_label} en {instance.espacio} para {instance.actividad} ({inicio})"
+        monto = self._get_reserva_monto(instance)
+        return (
+            f"reserva de {cliente_label} en {instance.espacio} para {instance.actividad} "
+            f"({inicio}) por Bs {monto}"
+        )
 
     def get_audit_field_labels(self):
         return {

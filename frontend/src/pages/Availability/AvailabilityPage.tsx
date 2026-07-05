@@ -8,6 +8,14 @@ import { useEspacios } from "../../hooks/useEspacios";
 const REFRESH_MS = 15_000;
 const FULLSCREEN_PAGE_SIZE = 5;
 const FULLSCREEN_ROTATE_MS = 8_000;
+const SPORT_ANIMATION_MS = 18_000;
+const SPORT_ANIMATION_DURATION_MS = 4_800;
+
+const SPORT_MOMENTS = [
+  { sport: "voley", title: "Saque listo", detail: "Disponibilidad en vivo" },
+  { sport: "futbol", title: "Cambio de cancha", detail: "Estados actualizados" },
+  { sport: "basquet", title: "Tiempo de juego", detail: "Espacios en movimiento" },
+] as const;
 
 function formatTime(date: Date | null): string {
   if (!date) return "-";
@@ -29,6 +37,8 @@ export default function AvailabilityPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [screenPage, setScreenPage] = useState(0);
+  const [sportMoment, setSportMoment] = useState(0);
+  const [showSportAnimation, setShowSportAnimation] = useState(false);
 
   const load = useCallback(async () => {
     await list({ page: "1", page_size: "100" });
@@ -91,6 +101,30 @@ export default function AvailabilityPage() {
     return () => window.clearInterval(timer);
   }, [isFullscreen, totalScreens]);
 
+  useEffect(() => {
+    if (!isFullscreen) {
+      setShowSportAnimation(false);
+      return;
+    }
+
+    let hideTimer: number | undefined;
+    const playMoment = () => {
+      window.clearTimeout(hideTimer);
+      setSportMoment((current) => current + 1);
+      setShowSportAnimation(true);
+      hideTimer = window.setTimeout(() => setShowSportAnimation(false), SPORT_ANIMATION_DURATION_MS);
+    };
+
+    const startTimer = window.setTimeout(playMoment, 900);
+    const repeatTimer = window.setInterval(playMoment, SPORT_ANIMATION_MS);
+
+    return () => {
+      window.clearTimeout(startTimer);
+      window.clearTimeout(hideTimer);
+      window.clearInterval(repeatTimer);
+    };
+  }, [isFullscreen]);
+
   const counters = useMemo(() => {
     return rows.reduce(
       (acc, espacio) => {
@@ -103,6 +137,7 @@ export default function AvailabilityPage() {
       { libres: 0, ocupados: 0, noDisponibles: 0 }
     );
   }, [rows]);
+  const currentMoment = SPORT_MOMENTS[sportMoment % SPORT_MOMENTS.length];
 
   return (
     <div
@@ -113,6 +148,8 @@ export default function AvailabilityPage() {
         background: "var(--color-bg)",
         padding: isFullscreen ? 0 : 0,
         minHeight: isFullscreen ? "100vh" : undefined,
+        overflow: isFullscreen ? "hidden" : undefined,
+        position: "relative",
       }}
     >
       {!isFullscreen && (
@@ -201,6 +238,22 @@ export default function AvailabilityPage() {
           <div style={{ padding: 16, opacity: 0.8 }}>No hay espacios para mostrar.</div>
         )}
       </div>
+
+      {isFullscreen && showSportAnimation && (
+        <div key={sportMoment} className={`fids-sport-moment fids-sport-moment--${currentMoment.sport}`} aria-hidden="true">
+          <div className="fids-sport-moment__beam" />
+          <div className="fids-sport-moment__ball" />
+          <div className="fids-sport-moment__trail fids-sport-moment__trail--one" />
+          <div className="fids-sport-moment__trail fids-sport-moment__trail--two" />
+          <div className="fids-sport-moment__card">
+            <span>{currentMoment.title}</span>
+            <strong>{currentMoment.detail}</strong>
+            <em>
+              {counters.libres} libres / {counters.ocupados} ocupados
+            </em>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

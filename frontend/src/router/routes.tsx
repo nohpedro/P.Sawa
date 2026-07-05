@@ -20,6 +20,7 @@ import ReservationsPage from "../pages/Reservations/ReservationsPage.tsx";
 import ReservationHistoryPage from "../pages/Reservations/ReservationHistoryPage.tsx";
 import UserRolesPage from "../pages/Admin/UserRolesPage.tsx";
 import AuditPage from "../pages/Admin/AuditPage.tsx";
+import MePage from "../pages/Me/MePage.tsx";
 
 export const routes = [
   {
@@ -42,6 +43,7 @@ export const routes = [
         element: <AuthLayout />,
         children: [
           { path: PATHS.app, element: <Navigate to={PATHS.availability} replace /> },
+          { path: PATHS.me, element: <MePage /> },
           { element: <ModuleRoute module="availability" />, children: [{ path: PATHS.availability, element: <AvailabilityPage /> }] },
           { element: <ModuleRoute module="spaces" />, children: [{ path: PATHS.adminEspacios, element: <SpacesPage /> }] },
           { element: <ModuleRoute module="activities" />, children: [{ path: PATHS.adminActividades, element: <ActivitiesPage /> }] },

@@ -93,6 +93,113 @@ export default function Header({
           display: inline-flex;
           align-items: center;
           gap: 12px;
+          min-width: 0;
+        }
+
+        .app-header-actions {
+          display: inline-flex;
+          align-items: center;
+          gap: 10px;
+          min-width: 0;
+        }
+
+        .app-header-user {
+          display: inline-grid;
+          grid-template-columns: 34px minmax(0, auto);
+          align-items: center;
+          gap: 9px;
+          min-width: 0;
+          padding: 5px 9px 5px 5px;
+          border: 1px solid rgba(255, 210, 74, 0.22);
+          border-radius: 999px;
+          background:
+            linear-gradient(135deg, rgba(255, 210, 74, 0.14), rgba(255, 255, 255, 0.035)),
+            rgba(255, 255, 255, 0.035);
+          color: #eaeaea;
+          text-decoration: none;
+          box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+          transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+        }
+
+        .app-header-user:hover {
+          transform: translateY(-1px);
+          border-color: rgba(255, 210, 74, 0.48);
+          background:
+            linear-gradient(135deg, rgba(255, 210, 74, 0.18), rgba(255, 255, 255, 0.055)),
+            rgba(255, 255, 255, 0.045);
+        }
+
+        .app-header-user__avatar {
+          width: 34px;
+          height: 34px;
+          display: grid;
+          place-items: center;
+          border-radius: 50%;
+          background: #ffd24a;
+          color: #10131a;
+          font-size: 12px;
+          font-weight: 950;
+          box-shadow: 0 0 0 3px rgba(255, 210, 74, 0.12), inset 0 -3px 0 rgba(16, 19, 26, 0.12);
+        }
+
+        .app-header-user__text {
+          display: grid;
+          gap: 1px;
+          min-width: 0;
+          line-height: 1.1;
+        }
+
+        .app-header-user__name {
+          max-width: 160px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 13px;
+          font-weight: 950;
+        }
+
+        .app-header-user__role {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          max-width: 160px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: rgba(234, 234, 234, 0.72);
+          font-size: 11px;
+          font-weight: 800;
+        }
+
+        .app-header-logout {
+          min-height: 38px;
+          border-radius: 999px !important;
+          background: rgba(255, 82, 82, 0.08) !important;
+          box-shadow: 0 0 0 3px rgba(255, 82, 82, 0.08);
+          transition: transform 160ms ease, background 160ms ease;
+        }
+
+        .app-header-logout:hover {
+          transform: translateY(-1px);
+          background: rgba(255, 82, 82, 0.14) !important;
+        }
+
+        @media (max-width: 680px) {
+          .app-header__court-line,
+          .app-header-user__text,
+          .app-header-logout span {
+            display: none;
+          }
+
+          .app-header-user {
+            grid-template-columns: 34px;
+            padding: 5px;
+          }
+
+          .app-header-logout {
+            width: 38px;
+            padding: 0 !important;
+          }
         }
 
         @keyframes headerBallBounce {

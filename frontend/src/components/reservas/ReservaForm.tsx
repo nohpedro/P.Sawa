@@ -259,45 +259,61 @@ export default function ReservaForm({
   const durationLabel = `${costo.minutos} min`;
 
   return (
-    <div style={{ display: "grid", gap: 16, color: "#f8fafc" }}>
+    <div style={{ display: "grid", gap: 12, color: "#f8fafc" }}>
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          gap: 12,
-          flexWrap: "wrap",
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
+          gap: 8,
           border: "1px solid #263244",
-          borderRadius: 10,
+          borderRadius: 8,
           background: "#0b1220",
-          padding: 14,
+          padding: 10,
         }}
       >
-        <div>
-          <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 800 }}>Dia seleccionado</div>
-          <div style={{ fontSize: 20, color: "#f8fafc", fontWeight: 950 }}>{day}</div>
-        </div>
-        <div style={{ color: "#94a3b8", fontSize: 13, fontWeight: 800 }}>
-          Completa cliente, espacio, actividad y horario.
-        </div>
+        {[
+          ["Fecha", day],
+          ["Horario", `${inicioHHMM} - ${finHHMM}`],
+          ["Duracion", durationLabel],
+          ["Total", totalLabel],
+        ].map(([label, value]) => (
+          <div key={label} style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 11, color: "#94a3b8", fontWeight: 850 }}>{label}</div>
+            <div style={{ color: label === "Total" ? "#ffd24a" : "#f8fafc", fontSize: 15, fontWeight: 950, marginTop: 2 }}>
+              {value}
+            </div>
+          </div>
+        ))}
       </div>
 
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
-          gap: 16,
+          gap: 12,
           alignItems: "start",
         }}
       >
-        <div style={{ display: "grid", gap: 14 }}>
-          <ClientePicker
-            clientes={clientesList}
-            selectedId={clienteId}
-            onSelect={setClienteId}
-            onOpenCreate={() => setCreateClienteOpen(true)}
-            loading={loading || clientes.loading}
-          />
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+            gap: 12,
+            alignItems: "start",
+            border: "1px solid #263244",
+            borderRadius: 8,
+            background: "#0f1420",
+            padding: 12,
+          }}
+        >
+          <div style={{ gridColumn: "1 / -1" }}>
+            <ClientePicker
+              clientes={clientesList}
+              selectedId={clienteId}
+              onSelect={setClienteId}
+              onOpenCreate={() => setCreateClienteOpen(true)}
+              loading={loading || clientes.loading}
+            />
+          </div>
 
           <Select
             label="Espacio"
@@ -327,6 +343,7 @@ export default function ReservaForm({
                 background: "#3a2f0a",
                 fontWeight: 850,
                 lineHeight: 1.35,
+                gridColumn: "1 / -1",
               }}
             >
               {espacioEstadoReserva.message}
@@ -334,13 +351,24 @@ export default function ReservaForm({
           )}
 
           {!actividadValida && (
-            <div style={{ padding: 10, borderRadius: 8, border: "1px solid #ff5252", color: "#fecaca", background: "#3f1111", fontWeight: 800 }}>
+            <div style={{ padding: 10, borderRadius: 8, border: "1px solid #ff5252", color: "#fecaca", background: "#3f1111", fontWeight: 800, gridColumn: "1 / -1" }}>
               Ese espacio no tiene asignada la actividad seleccionada.
             </div>
           )}
         </div>
 
-        <div style={{ display: "grid", gap: 14 }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gap: 12,
+            alignItems: "start",
+            border: "1px solid #263244",
+            borderRadius: 8,
+            background: "#0f1420",
+            padding: 12,
+          }}
+        >
           <TimeRangePicker
             inicioHHMM={inicioHHMM}
             onInicioChange={onInicioChange}
@@ -350,43 +378,25 @@ export default function ReservaForm({
             disabled={!espacioId || !actividadId || !espacioEstadoReserva.disponible}
           />
 
-          <Input label="Notas" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Opcional" />
+          <div style={{ display: "grid", gap: 10 }}>
+            <Input label="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones" />
 
-          <div
-            style={{
-              border: "1px solid rgba(255,210,74,0.55)",
-              borderRadius: 12,
-              padding: 16,
-              background: "linear-gradient(135deg, rgba(255,210,74,0.18), rgba(15,23,42,0.96) 44%)",
-              color: "#f8fafc",
-              boxShadow: "0 14px 34px rgba(255,210,74,0.08)",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-              <div>
-                <div style={{ color: "#ffd24a", fontSize: 12, fontWeight: 950, textTransform: "uppercase" }}>
-                  Total calculado
-                </div>
-                <div style={{ color: "#cbd5e1", fontSize: 12, fontWeight: 800, marginTop: 4 }}>
-                  Duracion: {durationLabel}
-                </div>
+            <div
+              style={{
+                border: "1px solid rgba(255,210,74,0.28)",
+                borderRadius: 8,
+                padding: 10,
+                background: "#0b1220",
+              }}
+            >
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                <span style={{ color: "#94a3b8", fontSize: 12, fontWeight: 850 }}>Total</span>
+                <strong style={{ color: "#ffd24a", fontSize: 22, lineHeight: 1 }}>{totalLabel}</strong>
               </div>
 
-              <div style={{ fontSize: 32, lineHeight: 1, fontWeight: 950, color: "#ffd24a", whiteSpace: "nowrap" }}>
-                {totalLabel}
+              <div style={{ marginTop: 8, color: "#cbd5e1", fontSize: 12, lineHeight: 1.4 }}>
+                {costo.mode === "bloques" ? `${formatNumber(costo.bloques)} bloques de ${costo.baseMin} min` : "Sin precio asignado"}
               </div>
-            </div>
-
-            <div style={{ marginTop: 12, color: "#cbd5e1", fontSize: 12, lineHeight: 1.45 }}>
-              {costo.mode === "bloques" ? (
-                <>
-                  Se cobra por bloques de <b>{costo.baseMin} min</b>. Bloques usados: <b>{formatNumber(costo.bloques)}</b>.
-                </>
-              ) : (
-                <>
-                  Selecciona una relacion Espacio-Actividad con precio para calcular el total real.
-                </>
-              )}
             </div>
           </div>
         </div>
@@ -405,7 +415,7 @@ export default function ReservaForm({
       )}
 
       <Button onClick={() => void submit()} disabled={loading || !canSubmit} fullWidth size="lg">
-        {loading ? <Loader label="Guardando..." /> : `Confirmar reserva · ${totalLabel}`}
+        {loading ? <Loader label="Guardando..." /> : `Confirmar reserva - ${totalLabel}`}
       </Button>
 
       <QuickCreateClienteModal
