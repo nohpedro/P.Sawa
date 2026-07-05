@@ -11,6 +11,7 @@ MODULE_LABELS = {
     "spaces": "Espacios",
     "activities": "Actividades",
     "space_activities": "Designacion de actividades",
+    "inventory": "Inventario",
     "audit": "Auditoria",
 }
 

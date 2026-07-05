@@ -4,6 +4,7 @@ export interface SidebarItem {
   label: string;
   to: string;
   icon: IconType;
+  end?: boolean;
 }
 
 export interface SidebarSection {

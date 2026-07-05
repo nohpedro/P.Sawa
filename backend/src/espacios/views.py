@@ -5,6 +5,8 @@ from decimal import Decimal, ROUND_HALF_UP
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import viewsets, filters
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
@@ -20,6 +22,7 @@ from .models import (
     ReglaGlobal,
     Promocion,
     Reserva,
+    ReservaPromotionCredit,
 )
 from .serializers import (
     TipoActividadSerializer,
@@ -29,8 +32,10 @@ from .serializers import (
     ReglaSerializer,
     ReglaGlobalSerializer,
     PromocionSerializer,
+    ReservaPromotionCreditSerializer,
     ReservaSerializer,
 )
+from .serializers.reserva import calcular_monto_reserva
 
 
 AUTH = (AccessTokenAuthentication,)
@@ -284,7 +289,14 @@ class ReservaViewSet(AuditLogMixin, viewsets.ModelViewSet):
     audit_module = "reservations"
     required_module = "reservations"
     read_modules = ("reservations", "history")
-    queryset = Reserva.objects.select_related("espacio", "usuario", "cliente", "actividad")
+    queryset = Reserva.objects.select_related(
+        "espacio",
+        "usuario",
+        "cliente",
+        "actividad",
+        "descuento_promocion",
+        "credito_promocion_canjeado__promocion",
+    )
     serializer_class = ReservaSerializer
     authentication_classes = AUTH
     permission_classes = PERMS
@@ -315,7 +327,7 @@ class ReservaViewSet(AuditLogMixin, viewsets.ModelViewSet):
         cliente = getattr(instance.cliente, "__str__", None)
         cliente_label = str(instance.cliente) if cliente else instance.usuario.get_username()
         inicio = timezone.localtime(instance.inicio).strftime("%d/%m/%Y %H:%M") if instance.inicio else ""
-        monto = self._get_reserva_monto(instance)
+        monto = calcular_monto_reserva(instance)
         return (
             f"reserva de {cliente_label} en {instance.espacio} para {instance.actividad} "
             f"({inicio}) por Bs {monto}"
@@ -359,3 +371,20 @@ class ReservaViewSet(AuditLogMixin, viewsets.ModelViewSet):
                 qs = qs.filter(inicio__lte=end_dt)
 
         return qs
+
+    @action(detail=False, methods=["get"], url_path="creditos-promocion")
+    def creditos_promocion(self, request):
+        qs = ReservaPromotionCredit.objects.select_related("cliente", "promocion", "reserva_origen", "reserva_canje").filter(
+            estado__in=("PENDIENTE", "PARCIAL"),
+            minutos_disponibles__gt=0,
+        )
+
+        cliente = request.query_params.get("cliente")
+        if cliente:
+            qs = qs.filter(cliente_id=cliente)
+
+        if not request.user.is_staff:
+            qs = qs.filter(cliente__user=request.user)
+
+        serializer = ReservaPromotionCreditSerializer(qs, many=True, context={"request": request})
+        return Response(serializer.data)

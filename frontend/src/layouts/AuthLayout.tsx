@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, Outlet, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { PATHS } from "../router/paths";
@@ -8,7 +9,9 @@ import type { SidebarSection } from "../components/navigation/sidebar.types";
 import Breadcrumbs from "../components/navigation/Breadcrumbs";
 import Header from "../components/navigation/Header";
 import Button from "../components/ui/Button";
+import Toast from "../components/ui/Toast";
 import { hasModule, type ModuleKey } from "../models/modules";
+import inventoryService from "../services/inventory.service";
 
 import {
   FiBox,
@@ -17,9 +20,11 @@ import {
   FiGrid,
   FiLayers,
   FiMap,
+  FiPackage,
   FiShield,
   FiFileText,
   FiLogOut,
+  FiTag,
   FiUser,
   FiUsers,
 } from "react-icons/fi";
@@ -33,11 +38,42 @@ export default function AuthLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const can = (module: ModuleKey) => hasModule(user, module);
+  const canInventory = can("inventory");
+  const [inventoryToast, setInventoryToast] = useState({ open: false, message: "", type: "info" as "info" | "success" | "error" });
 
   const onLogout = async () => {
     await logout();
     navigate(PATHS.login, { replace: true });
   };
+
+  useEffect(() => {
+    if (!canInventory) return;
+
+    let active = true;
+    let lastCount = -1;
+    const checkStock = async () => {
+      try {
+        const res = await inventoryService.listItems({ stock_bajo: "true", page: "1", page_size: "5" });
+        if (!active || !res.count || res.count === lastCount) return;
+        lastCount = res.count;
+        const names = (res.results ?? []).map((item) => item.nombre).join(", ");
+        setInventoryToast({
+          open: true,
+          type: "error",
+          message: `Inventario con stock bajo: ${res.count} item(s)${names ? ` (${names})` : ""}.`,
+        });
+      } catch {
+        // La alerta de inventario no debe interrumpir la navegacion.
+      }
+    };
+
+    void checkStock();
+    const timer = window.setInterval(checkStock, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [canInventory]);
 
   const sidebarSections: SidebarSection[] = [
     {
@@ -56,6 +92,17 @@ export default function AuthLayout() {
           : []),
         ...(can("users") ? [{ label: "Usuarios y roles", to: PATHS.usersRoles, icon: FiShield }] : []),
         ...(can("audit") ? [{ label: "Auditoria", to: PATHS.audit, icon: FiFileText }] : []),
+      ],
+    },
+    {
+      title: "Inventario",
+      items: [
+        ...(canInventory
+          ? [
+              { label: "Items y lotes", to: PATHS.inventory, icon: FiPackage, end: true },
+              { label: "Promociones", to: PATHS.inventoryPromotions, icon: FiTag },
+            ]
+          : []),
       ],
     },
     {
@@ -115,6 +162,14 @@ export default function AuthLayout() {
           <Outlet />
         </main>
       </div>
+
+      <Toast
+        open={inventoryToast.open}
+        message={inventoryToast.message}
+        type={inventoryToast.type}
+        durationMs={5200}
+        onClose={() => setInventoryToast((state) => ({ ...state, open: false }))}
+      />
     </div>
   );
 }

@@ -21,6 +21,8 @@ import ReservationHistoryPage from "../pages/Reservations/ReservationHistoryPage
 import UserRolesPage from "../pages/Admin/UserRolesPage.tsx";
 import AuditPage from "../pages/Admin/AuditPage.tsx";
 import MePage from "../pages/Me/MePage.tsx";
+import InventoryPage from "../pages/Inventory/InventoryPage.tsx";
+import PromotionPage from "../pages/Inventory/PromotionPage.tsx";
 
 export const routes = [
   {
@@ -48,6 +50,8 @@ export const routes = [
           { element: <ModuleRoute module="spaces" />, children: [{ path: PATHS.adminEspacios, element: <SpacesPage /> }] },
           { element: <ModuleRoute module="activities" />, children: [{ path: PATHS.adminActividades, element: <ActivitiesPage /> }] },
           { element: <ModuleRoute module="space_activities" />, children: [{ path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> }] },
+          { element: <ModuleRoute module="inventory" />, children: [{ path: PATHS.inventory, element: <InventoryPage /> }] },
+          { element: <ModuleRoute module="inventory" />, children: [{ path: PATHS.inventoryPromotions, element: <PromotionPage /> }] },
           { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customers, element: <CustomersPage /> }] },
           { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customerDetail, element: <CustomerDetailPage /> }] },
           { element: <ModuleRoute module="reservations" />, children: [{ path: PATHS.reservations, element: <ReservationsPage /> }] },

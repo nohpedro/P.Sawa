@@ -13,6 +13,7 @@ MODULE_CHOICES = (
     ("spaces", "Espacios"),
     ("activities", "Actividades"),
     ("space_activities", "Designacion de actividades"),
+    ("inventory", "Inventario"),
     ("users", "Usuarios y roles"),
     ("audit", "Auditoria"),
 )
@@ -26,6 +27,7 @@ DEFAULT_STAFF_MODULES = [
     "spaces",
     "activities",
     "space_activities",
+    "inventory",
 ]
 
 

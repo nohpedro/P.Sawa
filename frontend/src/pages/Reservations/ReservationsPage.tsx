@@ -12,9 +12,15 @@ import ReservationConfirmation from "../../components/reservas/ReservationConfir
 
 import { useReservas } from "../../hooks/useReservas";
 import { formatHHMM, toYYYYMMDD } from "../../utils/date";
-import type { ReservaWriteDTO } from "../../models/reserva";
+import type { Reserva, ReservaWriteDTO } from "../../models/reserva";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
+
+function promotionSummary(reservation: Reserva): string {
+  const applied = reservation.promociones_aplicadas ?? [];
+  if (!applied.length) return "-";
+  return applied.map((promotion) => promotion.beneficio || promotion.nombre).join(", ");
+}
 
 export default function ReservationsPage() {
   const reservas = useReservas();
@@ -53,6 +59,7 @@ export default function ReservationsPage() {
         `${inicio} - ${fin}`,
         reservation.espacio_nombre ?? reservation.espacio,
         reservation.actividad_nombre ?? reservation.actividad,
+        promotionSummary(reservation),
         `${reservation.cliente_nombre ?? ""} ${reservation.cliente_apellido ?? ""}`,
         reservation.usuario_username ?? "",
       ]
@@ -213,6 +220,7 @@ export default function ReservationsPage() {
               <div className="fids-cell">Actividad</div>
               <div className="fids-cell">Inicio</div>
               <div className="fids-cell">Fin</div>
+              <div className="fids-cell">Promos</div>
               <div className="fids-cell">Estado</div>
             </div>
 
@@ -225,6 +233,7 @@ export default function ReservationsPage() {
                 <div className="fids-cell">{r.actividad_nombre ?? r.actividad}</div>
                 <div className="fids-cell">{formatHHMM(r.inicio)}</div>
                 <div className="fids-cell">{formatHHMM(r.fin)}</div>
+                <div className="fids-cell">{promotionSummary(r)}</div>
                 <div className="fids-cell">{r.estado_reserva}</div>
               </div>
             ))}

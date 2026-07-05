@@ -6,6 +6,7 @@ export const MODULES = [
   { key: "spaces", label: "Espacios" },
   { key: "activities", label: "Actividades" },
   { key: "space_activities", label: "Designacion de actividades" },
+  { key: "inventory", label: "Inventario" },
   { key: "users", label: "Usuarios y roles" },
   { key: "audit", label: "Auditoria" },
 ] as const;

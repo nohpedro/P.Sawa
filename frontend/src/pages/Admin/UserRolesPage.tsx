@@ -41,8 +41,8 @@ const MODULE_SECTIONS: Array<{
   },
   {
     title: "Administracion",
-    description: "Configuracion de espacios, actividades y usuarios.",
-    modules: ["spaces", "activities", "space_activities", "users", "audit"],
+    description: "Configuracion de espacios, actividades, inventario y usuarios.",
+    modules: ["spaces", "activities", "space_activities", "inventory", "users", "audit"],
   },
 ];
 

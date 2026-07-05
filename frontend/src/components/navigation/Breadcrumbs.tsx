@@ -17,6 +17,10 @@ function labelFor(path: string) {
       return "Clientes";
     case PATHS.usersRoles:
       return "Usuarios y roles";
+    case PATHS.inventory:
+      return "Inventario";
+    case PATHS.inventoryPromotions:
+      return "Promociones";
     case PATHS.reservations:
       return "Reservas";
     case PATHS.reservationHistory:

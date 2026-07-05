@@ -3,7 +3,7 @@ from .espacio import EspacioSerializer, EspacioActividadSerializer
 from .calendario import CalendarioSerializer
 from .reglas import ReglaSerializer, ReglaGlobalSerializer
 from .promocion import PromocionSerializer
-from .reserva import ReservaSerializer
+from .reserva import ReservaPromotionCreditSerializer, ReservaSerializer
 
 __all__ = [
     "TipoActividadSerializer",
@@ -13,5 +13,6 @@ __all__ = [
     "ReglaSerializer",
     "ReglaGlobalSerializer",
     "PromocionSerializer",
+    "ReservaPromotionCreditSerializer",
     "ReservaSerializer",
 ]

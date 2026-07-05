@@ -85,6 +85,7 @@ export default function Sidebar({
                     <NavLink
                       key={it.to}
                       to={it.to}
+                      end={it.end}
                       title={collapsed ? it.label : undefined}
                       className={({ isActive }) =>
                         `app-sidebar__link${isActive ? " app-sidebar__link--active" : ""}`

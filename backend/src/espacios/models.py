@@ -224,6 +224,13 @@ class Promocion(BaseModel):
 # =====================
 # Reservas
 # =====================
+class ReservaPromotionCreditStatus(models.TextChoices):
+    PENDIENTE = "PENDIENTE", "Pendiente"
+    PARCIAL = "PARCIAL", "Parcial"
+    USADO = "USADO", "Usado"
+    CANCELADO = "CANCELADO", "Cancelado"
+
+
 class Reserva(BaseModel):
     espacio = models.ForeignKey(
         Espacio,
@@ -252,6 +259,24 @@ class Reserva(BaseModel):
 
     inicio = models.DateTimeField()
     fin = models.DateTimeField()
+    descuento_promocion = models.ForeignKey(
+        "inventario.InventoryPromotion",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reservas_descuento",
+    )
+    credito_promocion_canjeado = models.ForeignKey(
+        "ReservaPromotionCredit",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="reservas_canje",
+    )
+    promociones_aplicadas = models.JSONField(default=list, blank=True)
+    minutos_promocion_gratis_aplicados = models.PositiveIntegerField(default=0)
+    minutos_promocion_pendientes_generados = models.PositiveIntegerField(default=0)
+    minutos_credito_aplicados = models.PositiveIntegerField(default=0)
 
     estado_reserva = models.CharField(
         max_length=20,
@@ -310,3 +335,61 @@ class Reserva(BaseModel):
 
     def __str__(self):
         return f"{self.espacio} | {self.inicio} - {self.fin}"
+
+
+class ReservaPromotionCredit(BaseModel):
+    cliente = models.ForeignKey(
+        Cliente,
+        on_delete=models.PROTECT,
+        related_name="creditos_promocion_reserva",
+    )
+    promocion = models.ForeignKey(
+        "inventario.InventoryPromotion",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="creditos_reserva",
+    )
+    reserva_origen = models.ForeignKey(
+        Reserva,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="creditos_promocion_generados",
+    )
+    reserva_canje = models.ForeignKey(
+        Reserva,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="creditos_promocion_usados",
+    )
+    minutos_total = models.PositiveIntegerField(default=0)
+    minutos_disponibles = models.PositiveIntegerField(default=0)
+    estado = models.CharField(
+        max_length=20,
+        choices=ReservaPromotionCreditStatus.choices,
+        default=ReservaPromotionCreditStatus.PENDIENTE,
+    )
+    notas = models.TextField(blank=True)
+
+    class Meta:
+        db_table = "espacios_reserva_promocion_credito"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["cliente", "estado"]),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.minutos_total and not self.minutos_disponibles and self.pk is None:
+            self.minutos_disponibles = self.minutos_total
+        if self.minutos_disponibles <= 0:
+            self.estado = ReservaPromotionCreditStatus.USADO
+        elif self.minutos_disponibles < self.minutos_total:
+            self.estado = ReservaPromotionCreditStatus.PARCIAL
+        elif self.estado == ReservaPromotionCreditStatus.USADO:
+            self.estado = ReservaPromotionCreditStatus.PENDIENTE
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.cliente} - {self.minutos_disponibles} min"

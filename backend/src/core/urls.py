@@ -31,5 +31,6 @@ urlpatterns = [
     path("api/users/", include("users.urls")),
     path("api/auth/", include("auth_vap.urls")),
     path("api/espacios/", include("espacios.urls")),
+    path("api/inventario/", include("inventario.urls")),
     path("api/auditoria/", include("audit.urls")),
 ]

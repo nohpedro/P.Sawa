@@ -8,6 +8,7 @@ from .models import (
     ReglaGlobal,
     Promocion,
     Reserva,
+    ReservaPromotionCredit,
 )
 
 
@@ -124,6 +125,10 @@ class ReservaAdmin(admin.ModelAdmin):
         "actividad",
         "inicio",
         "fin",
+        "descuento_promocion",
+        "minutos_promocion_gratis_aplicados",
+        "minutos_promocion_pendientes_generados",
+        "minutos_credito_aplicados",
         "estado_reserva",
         "created_at",
     )
@@ -131,3 +136,12 @@ class ReservaAdmin(admin.ModelAdmin):
     search_fields = ("espacio__nombre", "usuario__username", "notas")
     ordering = ("-inicio",)
     autocomplete_fields = ("espacio", "usuario", "cliente", "actividad")
+
+
+@admin.register(ReservaPromotionCredit)
+class ReservaPromotionCreditAdmin(admin.ModelAdmin):
+    list_display = ("cliente", "promocion", "minutos_total", "minutos_disponibles", "estado", "reserva_origen", "reserva_canje")
+    list_filter = ("estado", "promocion")
+    search_fields = ("cliente__nombre", "cliente__apellido", "promocion__nombre", "notas")
+    ordering = ("-created_at",)
+    autocomplete_fields = ("cliente", "promocion", "reserva_origen", "reserva_canje")

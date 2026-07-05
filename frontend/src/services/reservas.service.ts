@@ -1,6 +1,6 @@
 import RequestHandler from "./RequestHandler";
 import type { PaginatedResponse } from "../models/pagination";
-import type { Reserva, ReservaWriteDTO } from "../models/reserva";
+import type { Reserva, ReservaPromotionCredit, ReservaWriteDTO } from "../models/reserva";
 
 const ENDPOINT = "/api/espacios/reservas/";
 
@@ -64,6 +64,11 @@ class ReservasService {
 
   async remove(id: string): Promise<void> {
     await this.request.deleteRequest(`${ENDPOINT}${id}/`);
+  }
+
+  async listPromotionCredits(params?: { cliente?: string }): Promise<ReservaPromotionCredit[]> {
+    const q = cleanParams(params);
+    return (await this.request.getRequest(`${ENDPOINT}creditos-promocion/`, q)) as ReservaPromotionCredit[];
   }
 }
 
