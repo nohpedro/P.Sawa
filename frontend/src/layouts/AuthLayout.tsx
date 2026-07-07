@@ -27,6 +27,7 @@ import {
   FiTag,
   FiUser,
   FiUsers,
+  FiShoppingCart,
 } from "react-icons/fi";
 
 function getInitials(value?: string) {
@@ -39,6 +40,7 @@ export default function AuthLayout() {
   const navigate = useNavigate();
   const can = (module: ModuleKey) => hasModule(user, module);
   const canInventory = can("inventory");
+  const canInventoryPromotions = can("inventory_promotions");
   const [inventoryToast, setInventoryToast] = useState({ open: false, message: "", type: "info" as "info" | "success" | "error" });
 
   const onLogout = async () => {
@@ -97,12 +99,8 @@ export default function AuthLayout() {
     {
       title: "Inventario",
       items: [
-        ...(canInventory
-          ? [
-              { label: "Items y lotes", to: PATHS.inventory, icon: FiPackage, end: true },
-              { label: "Promociones", to: PATHS.inventoryPromotions, icon: FiTag },
-            ]
-          : []),
+        ...(canInventory ? [{ label: "Items y lotes", to: PATHS.inventory, icon: FiPackage, end: true }] : []),
+        ...(canInventoryPromotions ? [{ label: "Promociones", to: PATHS.inventoryPromotions, icon: FiTag }] : []),
       ],
     },
     {
@@ -114,7 +112,13 @@ export default function AuthLayout() {
     {
       title: "Reservacion",
       items: [
-        ...(can("reservations") ? [{ label: "Reserva", to: PATHS.reservations, icon: FiBox }] : []),
+        ...(can("reservations")
+          ? [
+              { label: "Reserva", to: PATHS.reservations, icon: FiBox, end: true },
+            ]
+          : []),
+        ...(can("product_sales") ? [{ label: "Venta productos", to: PATHS.productSales, icon: FiShoppingCart }] : []),
+        ...(can("sales_history") ? [{ label: "Historial ventas", to: PATHS.salesHistory, icon: FiFileText }] : []),
         ...(can("history") ? [{ label: "Historial", to: PATHS.reservationHistory, icon: FiClock }] : []),
       ],
     },

@@ -8,8 +8,8 @@ from audit.utils import AuditLogMixin
 from auth_vap.authentication import AccessTokenAuthentication
 from common_vap.permissions import HasModuleAccess, IsAdminOrReadOnly
 
-from .models import InventoryItem, InventoryPromotion, InventoryPurchaseBatch
-from .serializers import InventoryItemSerializer, InventoryPromotionSerializer, InventoryPurchaseBatchSerializer
+from .models import InventoryItem, InventoryProductSale, InventoryPromotion, InventoryPurchaseBatch
+from .serializers import InventoryItemSerializer, InventoryProductSaleSerializer, InventoryPromotionSerializer, InventoryPurchaseBatchSerializer
 
 
 AUTH = (AccessTokenAuthentication,)
@@ -21,6 +21,7 @@ BACKENDS = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)
 class InventoryItemViewSet(AuditLogMixin, viewsets.ModelViewSet):
     audit_module = "inventory"
     required_module = "inventory"
+    read_modules = ("inventory", "inventory_promotions", "reservations", "product_sales", "sales_history")
     queryset = InventoryItem.objects.annotate(lotes_count=Count("lotes"))
     serializer_class = InventoryItemSerializer
     authentication_classes = AUTH
@@ -87,9 +88,9 @@ class InventoryPurchaseBatchViewSet(AuditLogMixin, viewsets.ModelViewSet):
 
 @extend_schema(tags=["Inventario"], description="CRUD de promociones ligadas a reservas e inventario.")
 class InventoryPromotionViewSet(AuditLogMixin, viewsets.ModelViewSet):
-    audit_module = "inventory"
-    required_module = "inventory"
-    read_modules = ("inventory", "reservations")
+    audit_module = "inventory_promotions"
+    required_module = "inventory_promotions"
+    read_modules = ("inventory_promotions", "reservations")
     queryset = InventoryPromotion.objects.select_related("item_regalo").prefetch_related("espacios")
     serializer_class = InventoryPromotionSerializer
     authentication_classes = AUTH
@@ -120,4 +121,37 @@ class InventoryPromotionViewSet(AuditLogMixin, viewsets.ModelViewSet):
             "aplica_todos_los_espacios": "Aplica a todos los espacios",
             "prioridad": "Prioridad",
             "combinable": "Combinable",
+        }
+
+
+@extend_schema(tags=["Inventario"], description="Venta de productos consumibles con descuento automatico de stock.")
+class InventoryProductSaleViewSet(AuditLogMixin, viewsets.ModelViewSet):
+    audit_module = "product_sales"
+    required_module = "product_sales"
+    read_modules = ("inventory", "product_sales", "sales_history")
+    queryset = InventoryProductSale.objects.select_related("item", "cliente", "reserva", "vendido_por")
+    serializer_class = InventoryProductSaleSerializer
+    authentication_classes = AUTH
+    permission_classes = PERMS
+    filter_backends = BACKENDS
+    search_fields = ("item__nombre", "cliente__nombre", "cliente__apellido", "notas")
+    ordering_fields = ("created_at", "cantidad", "precio_unitario", "total")
+    filterset_fields = ("item", "cliente", "reserva", "vendido_por")
+
+    def perform_create(self, serializer):
+        instance = serializer.save(vendido_por=self.request.user)
+        self._write_audit(AuditLog.Action.CREATE, instance)
+
+    def get_audit_summary(self, instance):
+        return f"venta de {instance.item.nombre}: {instance.cantidad} x Bs {instance.precio_unitario} = Bs {instance.total}"
+
+    def get_audit_field_labels(self):
+        return {
+            "item": "Item",
+            "cliente": "Cliente",
+            "reserva": "Reserva",
+            "cantidad": "Cantidad",
+            "precio_unitario": "Precio unitario",
+            "total": "Total",
+            "notas": "Notas",
         }

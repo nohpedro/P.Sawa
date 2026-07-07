@@ -279,3 +279,90 @@ class InventoryPurchaseBatch(BaseModel):
 
     def __str__(self):
         return f"{self.item} x {self.cantidad} ({self.fecha_compra})"
+
+
+class InventoryProductSale(BaseModel):
+    item = models.ForeignKey(InventoryItem, on_delete=models.PROTECT, related_name="ventas_producto")
+    cliente = models.ForeignKey(
+        "users.Cliente",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ventas_producto",
+    )
+    reserva = models.ForeignKey(
+        "espacios.Reserva",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ventas_producto",
+    )
+    cantidad = models.DecimalField(max_digits=12, decimal_places=2, validators=[MinValueValidator(Decimal("0.01"))])
+    precio_unitario = models.DecimalField(max_digits=10, decimal_places=2, validators=[MinValueValidator(0)])
+    total = models.DecimalField(max_digits=12, decimal_places=2, default=0, validators=[MinValueValidator(0)])
+    notas = models.TextField(blank=True)
+    vendido_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="ventas_producto_inventario",
+    )
+
+    class Meta:
+        db_table = "inventario_venta_producto"
+        ordering = ["-created_at"]
+
+    def clean(self):
+        errors = {}
+        if self.item_id:
+            if self.item.tipo != InventoryItemType.CONSUMIBLE:
+                errors["item"] = "Solo se pueden vender items consumibles."
+            if not self.item.es_para_venta:
+                errors["item"] = "El item no esta marcado para venta."
+            if not self.item.activo:
+                errors["item"] = "El item no esta activo."
+
+            available = self.item.stock_actual
+            if self.pk:
+                previous = InventoryProductSale.objects.filter(pk=self.pk).select_related("item").first()
+                if previous and previous.item_id == self.item_id:
+                    available += previous.cantidad
+            if self.cantidad and self.cantidad > available:
+                errors["cantidad"] = f"Stock insuficiente. Disponible: {available}."
+
+        if self.precio_unitario is None or self.precio_unitario <= 0:
+            errors["precio_unitario"] = "El precio unitario debe ser mayor a 0."
+
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        if self.item_id and not self.precio_unitario:
+            self.precio_unitario = self.item.precio_venta_sugerido
+        if self.cantidad and self.precio_unitario:
+            self.total = (self.cantidad * self.precio_unitario).quantize(Decimal("0.01"))
+
+        is_new = self.pk is None
+        previous = None if is_new else InventoryProductSale.objects.filter(pk=self.pk).select_related("item").first()
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+        if previous:
+            previous.item.stock_actual = max(Decimal("0.00"), previous.item.stock_actual + previous.cantidad)
+            previous.item.save(update_fields=["stock_actual", "updated_at"])
+
+        self.item.refresh_from_db(fields=["stock_actual"])
+        self.item.stock_actual = max(Decimal("0.00"), self.item.stock_actual - self.cantidad)
+        self.item.save(update_fields=["stock_actual", "updated_at"])
+
+    def delete(self, *args, **kwargs):
+        item = self.item
+        quantity = self.cantidad
+        result = super().delete(*args, **kwargs)
+        item.stock_actual = item.stock_actual + quantity
+        item.save(update_fields=["stock_actual", "updated_at"])
+        return result
+
+    def __str__(self):
+        return f"Venta {self.item} x {self.cantidad}"

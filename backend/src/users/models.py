@@ -14,6 +14,9 @@ MODULE_CHOICES = (
     ("activities", "Actividades"),
     ("space_activities", "Designacion de actividades"),
     ("inventory", "Inventario"),
+    ("inventory_promotions", "Promociones"),
+    ("product_sales", "Venta de productos"),
+    ("sales_history", "Historial de ventas"),
     ("users", "Usuarios y roles"),
     ("audit", "Auditoria"),
 )
@@ -28,6 +31,9 @@ DEFAULT_STAFF_MODULES = [
     "activities",
     "space_activities",
     "inventory",
+    "inventory_promotions",
+    "product_sales",
+    "sales_history",
 ]
 
 

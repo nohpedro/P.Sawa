@@ -2,6 +2,8 @@ import type { PaginatedResponse } from "../models/pagination";
 import type {
   InventoryItem,
   InventoryItemWriteDTO,
+  InventoryProductSale,
+  InventoryProductSaleWriteDTO,
   InventoryPromotion,
   InventoryPromotionWriteDTO,
   InventoryPurchaseBatch,
@@ -12,6 +14,7 @@ import RequestHandler from "./RequestHandler";
 const ITEMS_ENDPOINT = "/api/inventario/items/";
 const BATCHES_ENDPOINT = "/api/inventario/lotes/";
 const PROMOTIONS_ENDPOINT = "/api/inventario/promociones/";
+const PRODUCT_SALES_ENDPOINT = "/api/inventario/ventas-productos/";
 
 class InventoryService {
   private readonly request: RequestHandler;
@@ -58,6 +61,14 @@ class InventoryService {
 
   async removePromotion(id: string): Promise<void> {
     await this.request.deleteRequest(`${PROMOTIONS_ENDPOINT}${id}/`);
+  }
+
+  async listProductSales(params?: Record<string, string>): Promise<PaginatedResponse<InventoryProductSale>> {
+    return (await this.request.getRequest(PRODUCT_SALES_ENDPOINT, params)) as PaginatedResponse<InventoryProductSale>;
+  }
+
+  async createProductSale(payload: InventoryProductSaleWriteDTO): Promise<InventoryProductSale> {
+    return (await this.request.postRequest(PRODUCT_SALES_ENDPOINT, payload)) as InventoryProductSale;
   }
 }
 

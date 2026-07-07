@@ -17,6 +17,8 @@ import SpaceActivitiesPage from "../pages/Admin/SpaceActivitiesPage";
 import CustomersPage from "../pages/Customers/CustomersPage.tsx";
 import CustomerDetailPage from "../pages/Customers/CustomerDetailPage.tsx";
 import ReservationsPage from "../pages/Reservations/ReservationsPage.tsx";
+import ProductSalesPage from "../pages/Reservations/ProductSalesPage.tsx";
+import SalesHistoryPage from "../pages/Reservations/SalesHistoryPage.tsx";
 import ReservationHistoryPage from "../pages/Reservations/ReservationHistoryPage.tsx";
 import UserRolesPage from "../pages/Admin/UserRolesPage.tsx";
 import AuditPage from "../pages/Admin/AuditPage.tsx";
@@ -51,10 +53,12 @@ export const routes = [
           { element: <ModuleRoute module="activities" />, children: [{ path: PATHS.adminActividades, element: <ActivitiesPage /> }] },
           { element: <ModuleRoute module="space_activities" />, children: [{ path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> }] },
           { element: <ModuleRoute module="inventory" />, children: [{ path: PATHS.inventory, element: <InventoryPage /> }] },
-          { element: <ModuleRoute module="inventory" />, children: [{ path: PATHS.inventoryPromotions, element: <PromotionPage /> }] },
+          { element: <ModuleRoute module="inventory_promotions" />, children: [{ path: PATHS.inventoryPromotions, element: <PromotionPage /> }] },
           { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customers, element: <CustomersPage /> }] },
           { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customerDetail, element: <CustomerDetailPage /> }] },
           { element: <ModuleRoute module="reservations" />, children: [{ path: PATHS.reservations, element: <ReservationsPage /> }] },
+          { element: <ModuleRoute module="product_sales" />, children: [{ path: PATHS.productSales, element: <ProductSalesPage /> }] },
+          { element: <ModuleRoute module="sales_history" />, children: [{ path: PATHS.salesHistory, element: <SalesHistoryPage /> }] },
           { element: <ModuleRoute module="history" />, children: [{ path: PATHS.reservationHistory, element: <ReservationHistoryPage /> }] },
           { element: <ModuleRoute module="users" />, children: [{ path: PATHS.usersRoles, element: <UserRolesPage /> }] },
           { element: <ModuleRoute module="audit" />, children: [{ path: PATHS.audit, element: <AuditPage /> }] },

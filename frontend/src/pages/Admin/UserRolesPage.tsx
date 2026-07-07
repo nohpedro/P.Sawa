@@ -31,8 +31,8 @@ const MODULE_SECTIONS: Array<{
   },
   {
     title: "Reservacion",
-    description: "Gestion y revision de reservas.",
-    modules: ["reservations", "history"],
+    description: "Gestion de reservas, caja de productos e historiales.",
+    modules: ["reservations", "product_sales", "sales_history", "history"],
   },
   {
     title: "Clientes",
@@ -40,9 +40,14 @@ const MODULE_SECTIONS: Array<{
     modules: ["customers"],
   },
   {
+    title: "Inventario",
+    description: "Items, lotes y promociones del inventario.",
+    modules: ["inventory", "inventory_promotions"],
+  },
+  {
     title: "Administracion",
-    description: "Configuracion de espacios, actividades, inventario y usuarios.",
-    modules: ["spaces", "activities", "space_activities", "inventory", "users", "audit"],
+    description: "Configuracion de espacios, actividades y usuarios.",
+    modules: ["spaces", "activities", "space_activities", "users", "audit"],
   },
 ];
 
@@ -53,7 +58,7 @@ const emptyForm: ManagedUserWriteDTO = {
   is_active: true,
   is_staff: true,
   role: "operador",
-  modules: ["availability", "reservations"],
+  modules: ["availability", "reservations", "product_sales"],
 };
 
 function toggleModule(list: ModuleKey[], module: ModuleKey): ModuleKey[] {

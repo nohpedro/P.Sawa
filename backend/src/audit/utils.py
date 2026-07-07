@@ -12,6 +12,9 @@ MODULE_LABELS = {
     "activities": "Actividades",
     "space_activities": "Designacion de actividades",
     "inventory": "Inventario",
+    "inventory_promotions": "Promociones",
+    "product_sales": "Venta de productos",
+    "sales_history": "Historial de ventas",
     "audit": "Auditoria",
 }
 

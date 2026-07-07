@@ -15,6 +15,8 @@ export const PATHS = {
   inventoryPromotions: "/admin/inventario/promociones",
   audit: "/admin/auditoria",
   reservations: "/reservas",
+  productSales: "/reservas/ventas-productos",
+  salesHistory: "/reservas/historial-ventas",
   reservationHistory: "/historial-reservas",
 
   notFound: "*",

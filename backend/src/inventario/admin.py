@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import InventoryItem, InventoryPromotion, InventoryPurchaseBatch
+from .models import InventoryItem, InventoryProductSale, InventoryPromotion, InventoryPurchaseBatch
 
 
 @admin.register(InventoryItem)
@@ -23,3 +23,11 @@ class InventoryPromotionAdmin(admin.ModelAdmin):
     list_filter = ("tipo", "activo", "aplica_festivos", "combinable")
     search_fields = ("nombre", "descripcion", "notas", "item_regalo__nombre")
     filter_horizontal = ("espacios",)
+
+
+@admin.register(InventoryProductSale)
+class InventoryProductSaleAdmin(admin.ModelAdmin):
+    list_display = ("item", "cliente", "reserva", "cantidad", "precio_unitario", "total", "vendido_por", "created_at")
+    list_filter = ("item", "vendido_por")
+    search_fields = ("item__nombre", "cliente__nombre", "cliente__apellido", "notas")
+    autocomplete_fields = ("item", "cliente", "reserva", "vendido_por")

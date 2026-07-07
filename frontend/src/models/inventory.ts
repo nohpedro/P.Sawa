@@ -82,6 +82,32 @@ export interface InventoryPurchaseBatchWriteDTO {
   notas?: string;
 }
 
+export interface InventoryProductSale {
+  id: string;
+  item: string;
+  item_nombre?: string;
+  cliente?: string | null;
+  cliente_nombre?: string;
+  reserva?: string | null;
+  cantidad: string;
+  precio_unitario: string;
+  total: string;
+  notas: string;
+  vendido_por?: number | null;
+  vendido_por_username?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InventoryProductSaleWriteDTO {
+  item: string;
+  cliente?: string | null;
+  reserva?: string | null;
+  cantidad: string;
+  precio_unitario?: string;
+  notas?: string;
+}
+
 export interface InventoryPromotion {
   id: string;
   nombre: string;

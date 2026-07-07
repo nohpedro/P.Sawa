@@ -26,6 +26,13 @@ import { extractErrorMessage, humanizeReservaError } from "../../utils/apiError"
 import TimeRangePicker from "./TimeRangePicker";
 import type { HHMM } from "./ClockTimePicker";
 
+const panelStyle = {
+  border: "1px solid #263244",
+  borderRadius: 8,
+  background: "#0b1220",
+  padding: 10,
+};
+
 function hhmmToMinutes(v: string): number {
   const [h, m] = v.split(":").map((x) => Number(x));
   return h * 60 + m;
@@ -143,6 +150,7 @@ export default function ReservaForm({
   const [promotionCredits, setPromotionCredits] = useState<ReservaPromotionCredit[]>([]);
   const [selectedDiscountId, setSelectedDiscountId] = useState("");
   const [selectedCreditId, setSelectedCreditId] = useState("");
+  const [receivedAmount, setReceivedAmount] = useState("");
   const [uiError, setUiError] = useState<string | null>(null);
   const [createClienteOpen, setCreateClienteOpen] = useState(false);
 
@@ -344,6 +352,9 @@ export default function ReservaForm({
   const clientesList = clientes.data?.results ?? [];
   const totalLabel = `Bs ${formatNumber(promoTotal)}`;
   const originalTotalLabel = `Bs ${formatNumber(costo.total)}`;
+  const receivedValue = Number(receivedAmount || 0);
+  const changeValue = Math.max(0, receivedValue - promoTotal);
+  const missingValue = Math.max(0, promoTotal - receivedValue);
   const durationLabel = `${costo.minutos} min`;
 
   return (
@@ -468,6 +479,7 @@ export default function ReservaForm({
 
           <div style={{ display: "grid", gap: 10 }}>
             <Input label="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones" />
+            <Input label="Monto recibido" type="number" min="0" step="0.01" value={receivedAmount} onChange={(e) => setReceivedAmount(e.target.value)} placeholder="Ej: 100" />
 
             <div
               style={{
@@ -487,6 +499,19 @@ export default function ReservaForm({
                 {(selectedDiscount || selectedCredit) && (
                   <div style={{ marginTop: 4, color: "#94a3b8" }}>Antes de promociones: {originalTotalLabel}</div>
                 )}
+              </div>
+            </div>
+
+            <div style={{ ...panelStyle, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              <div>
+                <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 850 }}>Recibido</div>
+                <strong style={{ color: "#f8fafc" }}>Bs {formatNumber(receivedValue)}</strong>
+              </div>
+              <div>
+                <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 850 }}>{missingValue ? "Falta cobrar" : "Cambio"}</div>
+                <strong style={{ color: missingValue ? "#ffb4b4" : "#8ee59f" }}>
+                  Bs {formatNumber(missingValue || changeValue)}
+                </strong>
               </div>
             </div>
 

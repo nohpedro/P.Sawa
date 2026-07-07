@@ -7,6 +7,9 @@ export const MODULES = [
   { key: "activities", label: "Actividades" },
   { key: "space_activities", label: "Designacion de actividades" },
   { key: "inventory", label: "Inventario" },
+  { key: "inventory_promotions", label: "Promociones" },
+  { key: "product_sales", label: "Venta de productos" },
+  { key: "sales_history", label: "Historial de ventas" },
   { key: "users", label: "Usuarios y roles" },
   { key: "audit", label: "Auditoria" },
 ] as const;

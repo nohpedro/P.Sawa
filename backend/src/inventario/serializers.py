@@ -1,6 +1,14 @@
 from rest_framework import serializers
 
-from .models import InventoryItem, InventoryItemType, InventoryPromotion, InventoryPromotionPriority, InventoryPromotionWeekday, InventoryPurchaseBatch
+from .models import (
+    InventoryItem,
+    InventoryItemType,
+    InventoryProductSale,
+    InventoryPromotion,
+    InventoryPromotionPriority,
+    InventoryPromotionWeekday,
+    InventoryPurchaseBatch,
+)
 
 
 class InventoryPurchaseBatchSerializer(serializers.ModelSerializer):
@@ -149,3 +157,41 @@ class InventoryPromotionSerializer(serializers.ModelSerializer):
         if priority and priority not in {choice.value for choice in InventoryPromotionPriority}:
             raise serializers.ValidationError({"prioridad": "Selecciona prioridad baja, media o alta."})
         return attrs
+
+
+class InventoryProductSaleSerializer(serializers.ModelSerializer):
+    item_nombre = serializers.ReadOnlyField(source="item.nombre")
+    cliente_nombre = serializers.SerializerMethodField()
+    vendido_por_username = serializers.ReadOnlyField(source="vendido_por.username")
+
+    class Meta:
+        model = InventoryProductSale
+        fields = (
+            "id",
+            "item",
+            "item_nombre",
+            "cliente",
+            "cliente_nombre",
+            "reserva",
+            "cantidad",
+            "precio_unitario",
+            "total",
+            "notas",
+            "vendido_por",
+            "vendido_por_username",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("precio_unitario", "total", "vendido_por")
+
+    def get_cliente_nombre(self, obj):
+        return str(obj.cliente) if obj.cliente_id else ""
+
+    def validate_item(self, item):
+        if item.tipo != InventoryItemType.CONSUMIBLE:
+            raise serializers.ValidationError("Solo se pueden vender items consumibles.")
+        if not item.es_para_venta:
+            raise serializers.ValidationError("El item no esta marcado para venta.")
+        if not item.activo:
+            raise serializers.ValidationError("El item no esta activo.")
+        return item

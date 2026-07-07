@@ -23,6 +23,10 @@ function labelFor(path: string) {
       return "Promociones";
     case PATHS.reservations:
       return "Reservas";
+    case PATHS.productSales:
+      return "Venta productos";
+    case PATHS.salesHistory:
+      return "Historial ventas";
     case PATHS.reservationHistory:
       return "Historial";
     default:
