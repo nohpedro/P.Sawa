@@ -14,9 +14,12 @@ MODULE_CHOICES = (
     ("activities", "Actividades"),
     ("space_activities", "Designacion de actividades"),
     ("inventory", "Inventario"),
+    ("inventory_batches", "Registrar lotes"),
     ("inventory_promotions", "Promociones"),
+    ("inventory_sale_margin", "Editar margen venta"),
     ("product_sales", "Venta de productos"),
     ("sales_history", "Historial de ventas"),
+    ("business_goals", "Metas empresariales"),
     ("users", "Usuarios y roles"),
     ("audit", "Auditoria"),
 )
@@ -31,9 +34,12 @@ DEFAULT_STAFF_MODULES = [
     "activities",
     "space_activities",
     "inventory",
+    "inventory_batches",
     "inventory_promotions",
+    "inventory_sale_margin",
     "product_sales",
     "sales_history",
+    "business_goals",
 ]
 
 

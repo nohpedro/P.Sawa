@@ -6,7 +6,7 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
   hint?: string;
 }
 
-export default function Input({ label, error, hint, style, ...props }: InputProps) {
+const Input = React.forwardRef<HTMLInputElement, InputProps>(({ label, error, hint, style, ...props }, ref) => {
   return (
     <div style={{ display: "grid", gap: 6 }}>
       {label && (
@@ -17,6 +17,7 @@ export default function Input({ label, error, hint, style, ...props }: InputProp
 
       <input
         {...props}
+        ref={ref}
         style={{
           padding: "10px 12px",
           borderRadius: 6,
@@ -32,4 +33,8 @@ export default function Input({ label, error, hint, style, ...props }: InputProp
       {error && <div style={{ fontSize: 12, color: "#ff5252" }}>{error}</div>}
     </div>
   );
-}
+});
+
+Input.displayName = "Input";
+
+export default Input;

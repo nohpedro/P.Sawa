@@ -34,6 +34,7 @@ INSTALLED_APPS = [
     "auth_vap",
     "espacios",
     "inventario",
+    "metas",
     "audit",
 ]
 

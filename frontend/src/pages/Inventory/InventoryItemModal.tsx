@@ -3,6 +3,7 @@ import Input from "../../components/ui/Input";
 import Loader from "../../components/ui/Loader";
 import type { InventoryItemType, InventoryItemWriteDTO } from "../../models/inventory";
 import { ITEM_TYPES } from "./constants";
+import { DEFAULT_SALE_MARGIN_PERCENT } from "./permissions";
 import { Modal, panelStyle, selectStyle } from "./shared";
 
 export default function InventoryItemModal({
@@ -13,6 +14,7 @@ export default function InventoryItemModal({
   onClose,
   onSubmit,
   onDelete,
+  canEditSaleMargin,
 }: {
   mode: "create" | "edit";
   draft: InventoryItemWriteDTO;
@@ -21,8 +23,10 @@ export default function InventoryItemModal({
   onClose: () => void;
   onSubmit: () => void;
   onDelete?: () => void;
+  canEditSaleMargin: boolean;
 }) {
   const set = (patch: Partial<InventoryItemWriteDTO>) => onChange({ ...draft, ...patch });
+  const saleMarginValue = canEditSaleMargin ? draft.margen_venta_porcentaje ?? DEFAULT_SALE_MARGIN_PERCENT : DEFAULT_SALE_MARGIN_PERCENT;
   const needsMaintenance = draft.tipo === "mantenimiento" || draft.requiere_mantenimiento;
 
   return (
@@ -53,11 +57,19 @@ export default function InventoryItemModal({
           </div>
         )}
         <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center" }}>
-          <input type="checkbox" checked={!!draft.es_para_venta} onChange={(event) => set({ es_para_venta: event.target.checked, margen_venta_porcentaje: draft.margen_venta_porcentaje || "50" })} />
+          <input type="checkbox" checked={!!draft.es_para_venta} onChange={(event) => set({ es_para_venta: event.target.checked, margen_venta_porcentaje: saleMarginValue })} />
           <span style={{ fontSize: 13, fontWeight: 850 }}>Este item es para venta</span>
         </label>
         {draft.es_para_venta && (
-          <Input label="Margen venta %" type="number" min="0" step="0.01" value={draft.margen_venta_porcentaje ?? "50"} onChange={(event) => set({ margen_venta_porcentaje: event.target.value })} />
+          <Input
+            label="Margen venta %"
+            type="number"
+            min="0"
+            step="0.01"
+            value={saleMarginValue}
+            disabled={!canEditSaleMargin}
+            onChange={(event) => set({ margen_venta_porcentaje: event.target.value })}
+          />
         )}
         <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center" }}>
           <input type="checkbox" checked={needsMaintenance} disabled={draft.tipo === "mantenimiento"} onChange={(event) => set({ requiere_mantenimiento: event.target.checked })} />

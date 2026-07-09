@@ -9,6 +9,7 @@ from auth_vap.authentication import AccessTokenAuthentication
 from common_vap.permissions import HasModuleAccess, IsAdminOrReadOnly
 
 from .models import InventoryItem, InventoryProductSale, InventoryPromotion, InventoryPurchaseBatch
+from .permissions import can_edit_sale_margin, default_sale_margin_if_unauthorized
 from .serializers import InventoryItemSerializer, InventoryProductSaleSerializer, InventoryPromotionSerializer, InventoryPurchaseBatchSerializer
 
 
@@ -56,7 +57,8 @@ class InventoryItemViewSet(AuditLogMixin, viewsets.ModelViewSet):
 @extend_schema(tags=["Inventario"], description="Registro de compras/lotes para inventario.")
 class InventoryPurchaseBatchViewSet(AuditLogMixin, viewsets.ModelViewSet):
     audit_module = "inventory"
-    required_module = "inventory"
+    required_module = "inventory_batches"
+    read_modules = ("inventory", "inventory_batches")
     queryset = InventoryPurchaseBatch.objects.select_related("item", "creado_por")
     serializer_class = InventoryPurchaseBatchSerializer
     authentication_classes = AUTH
@@ -66,9 +68,22 @@ class InventoryPurchaseBatchViewSet(AuditLogMixin, viewsets.ModelViewSet):
     ordering_fields = ("fecha_compra", "cantidad", "costo_total", "costo_unitario", "created_at")
     filterset_fields = ("item", "compra_por_mayor", "proveedor")
 
+    def _ensure_default_margin_for_batch(self, serializer):
+        item = serializer.validated_data.get("item") or getattr(serializer.instance, "item", None)
+        if not item or can_edit_sale_margin(self.request.user):
+            return
+
+        item.margen_venta_porcentaje = default_sale_margin_if_unauthorized(item.margen_venta_porcentaje, self.request.user)
+        item.save(update_fields=["margen_venta_porcentaje", "updated_at"])
+
     def perform_create(self, serializer):
+        self._ensure_default_margin_for_batch(serializer)
         instance = serializer.save(creado_por=self.request.user)
         self._write_audit(AuditLog.Action.CREATE, instance)
+
+    def perform_update(self, serializer):
+        self._ensure_default_margin_for_batch(serializer)
+        super().perform_update(serializer)
 
     def get_audit_summary(self, instance):
         return f"lote de {instance.item.nombre}: {instance.cantidad} a Bs {instance.costo_unitario}"

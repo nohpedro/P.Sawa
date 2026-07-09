@@ -2,6 +2,7 @@ import Button from "../../components/ui/Button";
 import Input from "../../components/ui/Input";
 import Loader from "../../components/ui/Loader";
 import type { InventoryItem, InventoryPurchaseBatchWriteDTO } from "../../models/inventory";
+import { DEFAULT_SALE_MARGIN_PERCENT } from "./permissions";
 import { Modal, money, panelStyle, selectStyle } from "./shared";
 
 export type BatchDraft = InventoryPurchaseBatchWriteDTO & {
@@ -19,6 +20,7 @@ export default function BatchModal({
   onChange,
   onClose,
   onSubmit,
+  canEditSaleMargin,
 }: {
   item: InventoryItem;
   draft: BatchDraft;
@@ -29,8 +31,10 @@ export default function BatchModal({
   onChange: (draft: BatchDraft) => void;
   onClose: () => void;
   onSubmit: () => void;
+  canEditSaleMargin: boolean;
 }) {
   const set = (patch: Partial<BatchDraft>) => onChange({ ...draft, ...patch });
+  const saleMarginValue = canEditSaleMargin ? draft.margen_venta_porcentaje : DEFAULT_SALE_MARGIN_PERCENT;
 
   return (
     <Modal title="Registrar compra" subtitle={`Lote para ${item.nombre}`} onClose={onClose}>
@@ -50,7 +54,15 @@ export default function BatchModal({
         <div style={{ display: "grid", gridTemplateColumns: item.es_para_venta ? "1fr 1fr" : "1fr", gap: 12 }}>
           <Input label="Stock minimo" type="number" min="0" step="0.01" value={draft.stock_minimo} onChange={(event) => set({ stock_minimo: event.target.value })} />
           {item.es_para_venta && (
-            <Input label="Margen venta %" type="number" min="0" step="0.01" value={draft.margen_venta_porcentaje} onChange={(event) => set({ margen_venta_porcentaje: event.target.value })} />
+            <Input
+              label="Margen venta %"
+              type="number"
+              min="0"
+              step="0.01"
+              value={saleMarginValue}
+              disabled={!canEditSaleMargin}
+              onChange={(event) => set({ margen_venta_porcentaje: event.target.value })}
+            />
           )}
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>

@@ -9,6 +9,7 @@ from .models import (
     InventoryPromotionWeekday,
     InventoryPurchaseBatch,
 )
+from .permissions import default_sale_margin_if_unauthorized
 
 
 class InventoryPurchaseBatchSerializer(serializers.ModelSerializer):
@@ -94,7 +95,15 @@ class InventoryItemSerializer(serializers.ModelSerializer):
         tipo = attrs.get("tipo", getattr(self.instance, "tipo", None))
         if tipo == InventoryItemType.MANTENIMIENTO:
             attrs["requiere_mantenimiento"] = True
+        attrs["margen_venta_porcentaje"] = default_sale_margin_if_unauthorized(
+            attrs.get("margen_venta_porcentaje", getattr(self.instance, "margen_venta_porcentaje", None)),
+            self._request_user(),
+        )
         return attrs
+
+    def _request_user(self):
+        request = self.context.get("request")
+        return getattr(request, "user", None)
 
 
 class InventoryPromotionSerializer(serializers.ModelSerializer):

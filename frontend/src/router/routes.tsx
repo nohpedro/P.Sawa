@@ -25,6 +25,14 @@ import AuditPage from "../pages/Admin/AuditPage.tsx";
 import MePage from "../pages/Me/MePage.tsx";
 import InventoryPage from "../pages/Inventory/InventoryPage.tsx";
 import PromotionPage from "../pages/Inventory/PromotionPage.tsx";
+import BusinessGoalDetailPage from "../pages/BusinessGoals/BusinessGoalDetailPage.tsx";
+import BusinessGoalFormPage from "../pages/BusinessGoals/BusinessGoalFormPage.tsx";
+import BusinessGoalHistoryPage from "../pages/BusinessGoals/BusinessGoalHistoryPage.tsx";
+import BusinessGoalNodesPage from "../pages/BusinessGoals/BusinessGoalNodesPage.tsx";
+import BusinessGoalVariablesPage from "../pages/BusinessGoals/BusinessGoalVariablesPage.tsx";
+import BusinessGoalsDashboardPage from "../pages/BusinessGoals/BusinessGoalsDashboardPage.tsx";
+import BusinessGoalsListPage from "../pages/BusinessGoals/BusinessGoalsListPage.tsx";
+import BusinessFixedExpensesPage from "../pages/BusinessGoals/BusinessFixedExpensesPage.tsx";
 
 export const routes = [
   {
@@ -54,6 +62,15 @@ export const routes = [
           { element: <ModuleRoute module="space_activities" />, children: [{ path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> }] },
           { element: <ModuleRoute module="inventory" />, children: [{ path: PATHS.inventory, element: <InventoryPage /> }] },
           { element: <ModuleRoute module="inventory_promotions" />, children: [{ path: PATHS.inventoryPromotions, element: <PromotionPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalsDashboard, element: <BusinessGoalsDashboardPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalsList, element: <BusinessGoalsListPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalCreate, element: <BusinessGoalFormPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalExpenses, element: <BusinessFixedExpensesPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalVariables, element: <BusinessGoalVariablesPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalHistory, element: <BusinessGoalHistoryPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalEdit, element: <BusinessGoalFormPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalNodes, element: <BusinessGoalNodesPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalDetail, element: <BusinessGoalDetailPage /> }] },
           { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customers, element: <CustomersPage /> }] },
           { element: <ModuleRoute module="customers" />, children: [{ path: PATHS.customerDetail, element: <CustomerDetailPage /> }] },
           { element: <ModuleRoute module="reservations" />, children: [{ path: PATHS.reservations, element: <ReservationsPage /> }] },

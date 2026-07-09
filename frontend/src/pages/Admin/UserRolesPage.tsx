@@ -5,10 +5,12 @@ import Input from "../../components/ui/Input";
 import Button from "../../components/ui/Button";
 import Loader from "../../components/ui/Loader";
 import Toast from "../../components/ui/Toast";
-import { MODULES, moduleLabel, type ModuleKey } from "../../models/modules";
-import type { ManagedUser, ManagedUserWriteDTO } from "../../models/user";
+import { MODULES, moduleLabel } from "../../models/modules";
+import type { ManagedUser } from "../../models/user";
 import usersService from "../../services/users.service";
 import { getErrorMessage } from "../../utils/error";
+import ModuleAccessSections from "./ModuleAccessSections";
+import { emptyUserForm, USER_ROLES_PAGE_SIZE } from "./userRoles.constants";
 
 const panelStyle: CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -16,62 +18,6 @@ const panelStyle: CSSProperties = {
   background: "rgba(255,255,255,0.02)",
   padding: 14,
 };
-
-const PAGE_SIZE = 5;
-
-const MODULE_SECTIONS: Array<{
-  title: string;
-  description: string;
-  modules: ModuleKey[];
-}> = [
-  {
-    title: "Operacion",
-    description: "Pantallas de disponibilidad y uso diario.",
-    modules: ["availability"],
-  },
-  {
-    title: "Reservacion",
-    description: "Gestion de reservas, caja de productos e historiales.",
-    modules: ["reservations", "product_sales", "sales_history", "history"],
-  },
-  {
-    title: "Clientes",
-    description: "Consulta y administracion de clientes.",
-    modules: ["customers"],
-  },
-  {
-    title: "Inventario",
-    description: "Items, lotes y promociones del inventario.",
-    modules: ["inventory", "inventory_promotions"],
-  },
-  {
-    title: "Administracion",
-    description: "Configuracion de espacios, actividades y usuarios.",
-    modules: ["spaces", "activities", "space_activities", "users", "audit"],
-  },
-];
-
-const emptyForm: ManagedUserWriteDTO = {
-  username: "",
-  email: "",
-  password: "",
-  is_active: true,
-  is_staff: true,
-  role: "operador",
-  modules: ["availability", "reservations", "product_sales"],
-};
-
-function toggleModule(list: ModuleKey[], module: ModuleKey): ModuleKey[] {
-  return list.includes(module) ? list.filter((item) => item !== module) : [...list, module];
-}
-
-function setSectionModules(list: ModuleKey[], modules: ModuleKey[], checked: boolean): ModuleKey[] {
-  if (checked) {
-    return Array.from(new Set([...list, ...modules]));
-  }
-
-  return list.filter((item) => !modules.includes(item));
-}
 
 function normalizeUser(user: ManagedUser): ManagedUser {
   return {
@@ -81,92 +27,10 @@ function normalizeUser(user: ManagedUser): ManagedUser {
   };
 }
 
-function ModuleAccessSections({
-  value,
-  disabled = false,
-  includeUsers = true,
-  onChange,
-}: {
-  value: ModuleKey[];
-  disabled?: boolean;
-  includeUsers?: boolean;
-  onChange: (modules: ModuleKey[]) => void;
-}) {
-  return (
-    <div style={{ display: "grid", gap: 10 }}>
-      {MODULE_SECTIONS.map((section) => {
-        const sectionModules = section.modules.filter((module) => includeUsers || module !== "users");
-        if (sectionModules.length === 0) return null;
-
-        const selectedCount = sectionModules.filter((module) => value.includes(module)).length;
-        const allChecked = selectedCount === sectionModules.length;
-
-        return (
-          <div key={section.title} style={{ ...panelStyle, display: "grid", gap: 10 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
-              <div>
-                <div style={{ fontWeight: 950 }}>{section.title}</div>
-                <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 3 }}>
-                  {section.description}
-                </div>
-              </div>
-
-              <label style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12, fontWeight: 900, whiteSpace: "nowrap" }}>
-                <input
-                  type="checkbox"
-                  checked={allChecked}
-                  disabled={disabled}
-                  onChange={(event) => onChange(setSectionModules(value, sectionModules, event.target.checked))}
-                />
-                Todos
-              </label>
-            </div>
-
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
-              {sectionModules.map((module) => {
-                const checked = value.includes(module);
-
-                return (
-                  <label
-                    key={module}
-                    style={{
-                      display: "flex",
-                      gap: 8,
-                      alignItems: "center",
-                      border: `1px solid ${checked ? "rgba(255,210,74,0.55)" : "var(--color-border)"}`,
-                      borderRadius: 8,
-                      background: checked ? "rgba(255,210,74,0.08)" : "rgba(255,255,255,0.02)",
-                      padding: "9px 10px",
-                      fontSize: 13,
-                      fontWeight: 800,
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={checked}
-                      disabled={disabled}
-                      onChange={() => onChange(toggleModule(value, module))}
-                    />
-                    {MODULES.find((item) => item.key === module)?.label ?? module}
-                  </label>
-                );
-              })}
-            </div>
-
-            <div style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
-              {selectedCount} de {sectionModules.length} accesos seleccionados
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 export default function UserRolesPage() {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [selected, setSelected] = useState<ManagedUser | null>(null);
-  const [form, setForm] = useState<ManagedUserWriteDTO>(emptyForm);
+  const [form, setForm] = useState(emptyUserForm);
   const [modalMode, setModalMode] = useState<"create" | "edit" | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ManagedUser | null>(null);
   const [query, setQuery] = useState("");
@@ -188,7 +52,7 @@ export default function UserRolesPage() {
     setLoading(true);
     setError(null);
     try {
-      const res = await usersService.list({ page: String(targetPage), page_size: String(PAGE_SIZE) });
+      const res = await usersService.list({ page: String(targetPage), page_size: String(USER_ROLES_PAGE_SIZE) });
       const normalized = (res.results ?? []).map(normalizeUser);
       setUsers(normalized);
       setTotalUsers(res.count ?? 0);
@@ -214,10 +78,10 @@ export default function UserRolesPage() {
     if (!q) return users;
     return users.filter((user) => `${user.username} ${user.email} ${user.role}`.toLowerCase().includes(q));
   }, [query, users]);
-  const pageStart = totalUsers === 0 || filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const pageStart = totalUsers === 0 || filtered.length === 0 ? 0 : (page - 1) * USER_ROLES_PAGE_SIZE + 1;
   const pageEnd = totalUsers === 0 || filtered.length === 0
     ? 0
-    : Math.min((page - 1) * PAGE_SIZE + filtered.length, totalUsers);
+    : Math.min((page - 1) * USER_ROLES_PAGE_SIZE + filtered.length, totalUsers);
 
   const onCreate = async () => {
     if (!form.username.trim()) return;
@@ -230,7 +94,7 @@ export default function UserRolesPage() {
         email: form.email?.trim() ?? "",
         password: form.password?.trim() || "123456",
       });
-      setForm(emptyForm);
+      setForm(emptyUserForm);
       setPage(1);
       setSelected(normalizeUser(created));
       setModalMode(null);
@@ -313,7 +177,7 @@ export default function UserRolesPage() {
   };
 
   const openCreate = () => {
-    setForm(emptyForm);
+    setForm(emptyUserForm);
     setSelected(null);
     setGeneratedPassword(null);
     setResetPassword("");

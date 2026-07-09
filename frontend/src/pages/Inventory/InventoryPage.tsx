@@ -5,6 +5,7 @@ import Card from "../../components/ui/Card";
 import Input from "../../components/ui/Input";
 import Loader from "../../components/ui/Loader";
 import Toast from "../../components/ui/Toast";
+import { useAuth } from "../../hooks/useAuth";
 import type { InventoryItem, InventoryItemType, InventoryItemWriteDTO } from "../../models/inventory";
 import inventoryService from "../../services/inventory.service";
 import { getErrorMessage } from "../../utils/error";
@@ -12,6 +13,7 @@ import BatchModal, { type BatchDraft } from "./BatchModal";
 import DeleteItemModal from "./DeleteItemModal";
 import InventoryItemModal from "./InventoryItemModal";
 import { ITEM_TYPES } from "./constants";
+import { DEFAULT_SALE_MARGIN_PERCENT, canEditSaleMargin, canRegisterBatches, saleMarginOrDefault } from "./permissions";
 import { money, panelStyle, selectStyle } from "./shared";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
@@ -26,7 +28,7 @@ const emptyItem: InventoryItemWriteDTO = {
   stock_actual: "0",
   stock_minimo: "0",
   es_para_venta: false,
-  margen_venta_porcentaje: "50",
+  margen_venta_porcentaje: DEFAULT_SALE_MARGIN_PERCENT,
   requiere_mantenimiento: false,
   fecha_ultimo_mantenimiento: "",
   fecha_proximo_mantenimiento: "",
@@ -40,12 +42,12 @@ const emptyBatch: BatchDraft = {
   cantidad: "10",
   costo_total: "10",
   stock_minimo: "0",
-  margen_venta_porcentaje: "50",
+  margen_venta_porcentaje: DEFAULT_SALE_MARGIN_PERCENT,
   compra_por_mayor: true,
   notas: "",
 };
 
-function asPayload(item: InventoryItemWriteDTO): InventoryItemWriteDTO {
+function asPayload(item: InventoryItemWriteDTO, canEditMargin: boolean): InventoryItemWriteDTO {
   return {
     ...item,
     nombre: item.nombre.trim(),
@@ -57,11 +59,14 @@ function asPayload(item: InventoryItemWriteDTO): InventoryItemWriteDTO {
     stock_actual: item.stock_actual || "0",
     stock_minimo: item.stock_minimo || "0",
     es_para_venta: !!item.es_para_venta,
-    margen_venta_porcentaje: item.margen_venta_porcentaje || "50",
+    margen_venta_porcentaje: saleMarginOrDefault(item.margen_venta_porcentaje, canEditMargin),
   };
 }
 
 export default function InventoryPage() {
+  const { user } = useAuth();
+  const userCanEditSaleMargin = canEditSaleMargin(user);
+  const userCanRegisterBatches = canRegisterBatches(user);
   const [items, setItems] = useState<InventoryItem[]>([]);
   const [selected, setSelected] = useState<InventoryItem | null>(null);
   const [itemDraft, setItemDraft] = useState<InventoryItemWriteDTO>(emptyItem);
@@ -124,12 +129,12 @@ export default function InventoryPage() {
   }, [batchDraft.cantidad, batchDraft.costo_total]);
 
   const salePricePreview = selected?.es_para_venta
-    ? unitCostPreview * (1 + Number(batchDraft.margen_venta_porcentaje || 50) / 100)
+    ? unitCostPreview * (1 + Number(saleMarginOrDefault(batchDraft.margen_venta_porcentaje, userCanEditSaleMargin)) / 100)
     : 0;
   const marginPreview = salePricePreview - unitCostPreview;
 
   const openCreate = () => {
-    setItemDraft(emptyItem);
+    setItemDraft({ ...emptyItem, margen_venta_porcentaje: DEFAULT_SALE_MARGIN_PERCENT });
     setSelected(null);
     setModalMode("create");
   };
@@ -146,7 +151,7 @@ export default function InventoryPage() {
       stock_minimo: item.stock_minimo,
       requiere_mantenimiento: item.requiere_mantenimiento,
       es_para_venta: item.es_para_venta,
-      margen_venta_porcentaje: item.margen_venta_porcentaje || "50",
+      margen_venta_porcentaje: saleMarginOrDefault(item.margen_venta_porcentaje, userCanEditSaleMargin),
       fecha_ultimo_mantenimiento: item.fecha_ultimo_mantenimiento ?? "",
       fecha_proximo_mantenimiento: item.fecha_proximo_mantenimiento ?? "",
       activo: item.activo,
@@ -155,12 +160,13 @@ export default function InventoryPage() {
   };
 
   const openBatch = (item: InventoryItem) => {
+    if (!userCanRegisterBatches) return;
     setSelected(item);
     setBatchDraft({
       ...emptyBatch,
       item: item.id,
       stock_minimo: item.stock_minimo || "0",
-      margen_venta_porcentaje: item.margen_venta_porcentaje || "50",
+      margen_venta_porcentaje: saleMarginOrDefault(item.margen_venta_porcentaje, userCanEditSaleMargin),
     });
     setModalMode("batch");
   };
@@ -169,7 +175,7 @@ export default function InventoryPage() {
     if (!itemDraft.nombre.trim()) return;
     setLoading(true);
     try {
-      const created = await inventoryService.createItem(asPayload(itemDraft));
+      const created = await inventoryService.createItem(asPayload(itemDraft, userCanEditSaleMargin));
       setSelected(created);
       setModalMode(null);
       setToast({ open: true, message: "Item creado.", type: "success" });
@@ -185,7 +191,7 @@ export default function InventoryPage() {
     if (!selected || !itemDraft.nombre.trim()) return;
     setLoading(true);
     try {
-      const updated = await inventoryService.patchItem(selected.id, asPayload(itemDraft));
+      const updated = await inventoryService.patchItem(selected.id, asPayload(itemDraft, userCanEditSaleMargin));
       setSelected(updated);
       setModalMode(null);
       setToast({ open: true, message: "Item actualizado.", type: "success" });
@@ -219,7 +225,9 @@ export default function InventoryPage() {
     try {
       await inventoryService.patchItem(selected.id, {
         stock_minimo: batchDraft.stock_minimo || "0",
-        ...(selected.es_para_venta ? { margen_venta_porcentaje: batchDraft.margen_venta_porcentaje || "50" } : {}),
+        ...(selected.es_para_venta
+          ? { margen_venta_porcentaje: saleMarginOrDefault(batchDraft.margen_venta_porcentaje, userCanEditSaleMargin) }
+          : {}),
       });
       await inventoryService.createBatch({
         item: selected.id,
@@ -321,9 +329,11 @@ export default function InventoryPage() {
                     <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Venta sugerida</div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>
-                    <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); openBatch(item); }}>
-                      + Lote
-                    </Button>
+                    {userCanRegisterBatches && (
+                      <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); openBatch(item); }}>
+                        + Lote
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={(event) => { event.stopPropagation(); openEdit(item); }}>
                       Editar
                     </Button>
@@ -345,6 +355,7 @@ export default function InventoryPage() {
           onClose={() => setModalMode(null)}
           onSubmit={() => void (modalMode === "create" ? onCreate() : onSave())}
           onDelete={modalMode === "edit" ? () => setModalMode("delete") : undefined}
+          canEditSaleMargin={userCanEditSaleMargin}
         />,
         document.body
       )}
@@ -360,6 +371,7 @@ export default function InventoryPage() {
           onChange={setBatchDraft}
           onClose={() => setModalMode(null)}
           onSubmit={() => void onCreateBatch()}
+          canEditSaleMargin={userCanEditSaleMargin}
         />,
         document.body
       )}

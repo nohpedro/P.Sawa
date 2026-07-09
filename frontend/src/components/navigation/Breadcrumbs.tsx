@@ -21,6 +21,18 @@ function labelFor(path: string) {
       return "Inventario";
     case PATHS.inventoryPromotions:
       return "Promociones";
+    case PATHS.businessGoalsDashboard:
+      return "Metas empresariales";
+    case PATHS.businessGoalsList:
+      return "Listado de metas";
+    case PATHS.businessGoalCreate:
+      return "Nueva meta";
+    case PATHS.businessGoalVariables:
+      return "Asignacion de variables";
+    case PATHS.businessGoalExpenses:
+      return "Gastos fijos";
+    case PATHS.businessGoalHistory:
+      return "Historial de metas";
     case PATHS.reservations:
       return "Reservas";
     case PATHS.productSales:
