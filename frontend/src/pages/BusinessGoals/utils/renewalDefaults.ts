@@ -48,7 +48,7 @@ export function applyGoalRenewalDefaults(
     "fecha_inicio" in patch ||
     hadUnsupportedFrequency ||
     !next.proximo_ciclo;
-  const nextCycle = shouldRecalculateDates ? addDays(next.fecha_inicio, days) : next.proximo_ciclo;
+  const nextCycle = shouldRecalculateDates ? addDays(next.fecha_inicio, days - 1) : next.proximo_ciclo;
   const cycleEnd = shouldRecalculateDates ? addDays(next.fecha_inicio, days - 1) : next.fecha_fin;
 
   return {

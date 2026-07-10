@@ -13,6 +13,7 @@ MODULE_LABELS = {
     "space_activities": "Designacion de actividades",
     "inventory": "Inventario",
     "inventory_batches": "Registrar lotes",
+    "inventory_batch_history": "Historial de ingreso de lotes",
     "inventory_promotions": "Promociones",
     "inventory_sale_margin": "Editar margen venta",
     "product_sales": "Venta de productos",

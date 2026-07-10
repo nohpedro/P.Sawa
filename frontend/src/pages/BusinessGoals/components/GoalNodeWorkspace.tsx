@@ -12,17 +12,43 @@ import { useGoalWorkspace } from "../hooks/useGoalWorkspace";
 import ConfirmGoalActionModal from "../modals/ConfirmGoalActionModal";
 import GoalConnectionModal from "../modals/GoalConnectionModal";
 import GoalNodeModal from "../modals/GoalNodeModal";
+import GoalVariablePickerModal from "../modals/GoalVariablePickerModal";
 import { nodeDraftFromFixedExpense } from "../utils/variableMapping";
-import GoalNodeBoard, { type AutomaticVariableKind } from "./GoalNodeBoard";
+import GoalNodeBoard, { type AutomaticVariableKind, type PendingGoalVariable } from "./GoalNodeBoard";
 
-export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId: string; compact?: boolean }) {
+const expenseNodeTypes = new Set(["salarios", "servicios", "alquiler", "gastos_variables", "facturas_pendientes", "gasto_fijo"]);
+
+function operatorForNode(node: BusinessGoalNode): "+" | "-" {
+  if (node.config?.fixed_expense_id || expenseNodeTypes.has(node.tipo)) return "-";
+  return "+";
+}
+
+export default function GoalNodeWorkspace({
+  goalId,
+  compact = false,
+  onBack,
+}: {
+  goalId: string;
+  compact?: boolean;
+  onBack?: () => void;
+}) {
   const { goal, nodes, connections, expenses, loading, error, reload } = useGoalWorkspace(goalId);
   const [editingNode, setEditingNode] = useState<BusinessGoalNode | null>(null);
   const [deleteNode, setDeleteNode] = useState<BusinessGoalNode | null>(null);
   const [editingConnection, setEditingConnection] = useState<BusinessGoalConnection | null>(null);
   const [nodeModal, setNodeModal] = useState(false);
+  const [variablePickerOpen, setVariablePickerOpen] = useState(false);
+  const [pendingVariable, setPendingVariable] = useState<PendingGoalVariable | null>(null);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState({ open: false, message: "", type: "info" as "info" | "success" | "error" });
+  const assignedExpenseIds = new Set(nodes.map((node) => node.config?.fixed_expense_id).filter(Boolean).map(String));
+  const availableExpenses = expenses.filter((expense) => !assignedExpenseIds.has(expense.id));
+  const assignedAutomaticKinds = new Set(nodes.filter((node) => !node.config?.fixed_expense_id).map((node) => node.tipo));
+  const automaticVariables: Array<{ kind: AutomaticVariableKind; label: string; description: string }> = [
+    { kind: "ventas", label: "Ventas de productos", description: "Usa ventas registradas en inventario." },
+    { kind: "reservas", label: "Reservas", description: "Usa reservas registradas dentro del periodo." },
+  ];
+  const availableAutomaticVariables = automaticVariables.filter((variable) => !assignedAutomaticKinds.has(variable.kind));
 
   const saveNode = async (draft: BusinessGoalNodeWriteDTO) => {
     setSaving(true);
@@ -72,10 +98,12 @@ export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId:
       const variableCount = nodes.filter((node) => node.config?.role !== "goal_target").length;
       const node = await businessGoalsService.createNode(nodeDraftFromFixedExpense({ goalId: goal.id, cycleId: goal.progress?.cycle_id, expense, index: variableCount }));
       if (target) {
-        await businessGoalsService.createConnection({ goal: goal.id, cycle: goal.progress?.cycle_id, source: node.id, target: target.id, operador: "+", peso: "1" });
+        await businessGoalsService.createConnection({ goal: goal.id, cycle: goal.progress?.cycle_id, source: node.id, target: target.id, operador: "-", peso: "1" });
       }
       await reload();
       const progress = await businessGoalsService.goalProgress(goal.id);
+      setVariablePickerOpen(false);
+      setPendingVariable(null);
       setToast({
         open: true,
         type: progress.cumplimiento_estimado ? "success" : "info",
@@ -121,6 +149,8 @@ export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId:
         await businessGoalsService.createConnection({ goal: goal.id, cycle: goal.progress?.cycle_id, source: node.id, target: target.id, operador: "+", peso: "1" });
       }
       await reload();
+      setVariablePickerOpen(false);
+      setPendingVariable(null);
       setToast({ open: true, type: "success", message: `${labels[kind]} ahora actualiza el avance de la meta.` });
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo asignar la variable automatica."), type: "error" });
@@ -135,6 +165,8 @@ export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId:
     try {
       await businessGoalsService.deleteNode(deleteNode.id);
       setDeleteNode(null);
+      setVariablePickerOpen(false);
+      setPendingVariable(null);
       await reload();
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo eliminar el nodo."), type: "error" });
@@ -151,6 +183,35 @@ export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId:
       await reload();
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo mover el nodo."), type: "error" });
+    }
+  };
+
+  const connectExistingNode = async (node: BusinessGoalNode) => {
+    if (!goal) return;
+    if (connections.some((connection) => connection.source === node.id)) {
+      setToast({ open: true, message: "Esta variable ya tiene una relacion activa.", type: "info" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const target = await ensureGoalTargetNode();
+      if (!target) return;
+      const connection = await businessGoalsService.createConnection({
+        goal: goal.id,
+        cycle: goal.progress?.cycle_id,
+        source: node.id,
+        target: target.id,
+        operador: operatorForNode(node),
+        peso: "1",
+      });
+      setPendingVariable(null);
+      await reload();
+      setEditingConnection(connection);
+    } catch (err) {
+      setToast({ open: true, message: getErrorMessage(err, "No se pudo reconectar la variable."), type: "error" });
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -174,6 +235,8 @@ export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId:
     try {
       await businessGoalsService.deleteConnection(editingConnection.id);
       setEditingConnection(null);
+      setVariablePickerOpen(false);
+      setPendingVariable(null);
       await reload();
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo eliminar la relacion."), type: "error" });
@@ -185,11 +248,17 @@ export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId:
   return (
     <>
       <Card
-        title={compact ? "Mapa visual" : "Asignacion visual de variables"}
+        title={compact ? "Mapa visual de variables" : "Asignacion visual de variables"}
         subtitle={goal ? `Nodos y conexiones para ${goal.nombre}` : "Nodos y conexiones"}
         rightSlot={
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Button onClick={() => { setEditingNode(null); setNodeModal(true); }}>+ Nodo</Button>
+            {onBack && <Button variant="outline" onClick={onBack}>Volver a metas</Button>}
+            <Button
+              variant="outline"
+              onClick={() => setVariablePickerOpen(true)}
+            >
+              Variables
+            </Button>
           </div>
         }
       >
@@ -200,18 +269,35 @@ export default function GoalNodeWorkspace({ goalId, compact = false }: { goalId:
             goal={goal}
             nodes={nodes}
             connections={connections}
-            expenses={expenses}
-            onDropExpense={(expense) => void dropExpenseOnGoal(expense)}
-            onDropAutomaticVariable={(kind) => void dropAutomaticVariableOnGoal(kind)}
             onEditNode={(node) => { setEditingNode(node); setNodeModal(true); }}
             onDeleteNode={setDeleteNode}
             onMoveNode={(node, position) => void moveNode(node, position)}
             onEditConnection={setEditingConnection}
+            pendingVariable={pendingVariable}
+            onRequestVariablePicker={() => setVariablePickerOpen(true)}
+            onConnectExistingNode={(node) => void connectExistingNode(node)}
+            onAssignPendingExpense={(expense) => void dropExpenseOnGoal(expense)}
+            onAssignPendingAutomatic={(kind) => void dropAutomaticVariableOnGoal(kind)}
           />
         )}
       </Card>
 
       {nodeModal && goal && createPortal(<GoalNodeModal goalId={goal.id} cycleId={goal.progress?.cycle_id} node={editingNode} expenses={expenses} loading={saving} onClose={() => setNodeModal(false)} onSubmit={saveNode} />, document.body)}
+      {variablePickerOpen && createPortal(<GoalVariablePickerModal
+        expenses={availableExpenses}
+        automaticVariables={availableAutomaticVariables}
+        loading={saving}
+        onClose={() => setVariablePickerOpen(false)}
+        onSelectExpense={(expense) => {
+          setPendingVariable({ type: "expense", expense });
+          setVariablePickerOpen(false);
+        }}
+        onSelectAutomatic={(kind) => {
+          const option = automaticVariables.find((variable) => variable.kind === kind);
+          setPendingVariable({ type: "automatic", kind, label: option?.label ?? kind, description: option?.description ?? "" });
+          setVariablePickerOpen(false);
+        }}
+      />, document.body)}
       {deleteNode && createPortal(<ConfirmGoalActionModal title="Eliminar nodo" message={`Se eliminara el nodo ${deleteNode.etiqueta} y sus conexiones asociadas.`} loading={saving} onClose={() => setDeleteNode(null)} onConfirm={confirmDeleteNode} />, document.body)}
       {editingConnection && createPortal(<GoalConnectionModal connection={editingConnection} loading={saving} onClose={() => setEditingConnection(null)} onSubmit={(draft) => void saveConnection(draft)} onDelete={() => void deleteConnection()} />, document.body)}
       <Toast open={toast.open} message={toast.message} type={toast.type} onClose={() => setToast((t) => ({ ...t, open: false }))} />

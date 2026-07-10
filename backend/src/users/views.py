@@ -149,7 +149,12 @@ class ClienteViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Cliente.objects.select_related("user").all()
         if self.request.user.is_staff:
-            return qs
+            return qs.filter(
+                user__is_staff=False,
+                user__is_superuser=False,
+                user__access_profile__role="cliente",
+                user__access_profile__created_by__isnull=True,
+            )
         return qs.filter(user=self.request.user)
 
     def get_serializer_class(self):

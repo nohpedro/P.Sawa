@@ -28,34 +28,35 @@ export default function GoalNodeCard({
 
   return (
     <div
+      data-graph-ignore-pan="true"
       style={{
         position: "absolute",
         left: position?.x ?? node.posicion_x,
         top: position?.y ?? node.posicion_y,
-        width: 210,
-        border: `1px solid ${selected ? "rgba(255,210,74,0.85)" : "rgba(255,210,74,0.35)"}`,
-        borderRadius: 8,
+        width: 220,
+        minHeight: 112,
+        border: `1px solid ${selected ? "#ffd24a" : "#8ee59f"}`,
+        borderRadius: 12,
         padding: 12,
-        background: selected ? "#172033" : "#111827",
-        boxShadow: "0 14px 30px rgba(0,0,0,0.25)",
-        cursor: "grab",
+        background: selected ? "rgba(255,210,74,0.14)" : "rgba(142,229,159,0.10)",
+        boxShadow: selected ? "0 18px 42px rgba(255,210,74,0.12)" : "0 12px 30px rgba(142,229,159,0.08)",
+        cursor: selected ? "grabbing" : "grab",
         touchAction: "none",
+        userSelect: "none",
       }}
       onPointerDown={onPointerDown}
     >
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
-        <strong style={{ minWidth: 0 }}>{node.etiqueta}</strong>
-      </div>
-      <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>{node.tipo_label ?? node.tipo}</div>
-      <div style={{ color: "#ffd24a", fontSize: 13, fontWeight: 900, marginTop: 8 }}>
+      <div style={{ fontSize: 13, fontWeight: 950, lineHeight: 1.25 }}>{node.etiqueta}</div>
+      <div style={{ color: "#cbd5e1", fontSize: 11, marginTop: 5 }}>{node.tipo_label ?? node.tipo}</div>
+      <div style={{ color: "#ffd24a", fontSize: 12, fontWeight: 950, marginTop: 8 }}>
         {formatBolivianos(node.valor)} {Number(node.porcentaje) > 0 ? `- ${node.porcentaje}%` : ""}
       </div>
-      <div style={{ color: "var(--color-text-muted)", fontSize: 11, marginTop: 6 }}>
+      <div style={{ color: "#8ee59f", fontSize: 11, fontWeight: 900, marginTop: 5 }}>
         {frequency || "Sin frecuencia"} {status ? `- ${status}` : ""}
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, marginTop: 10 }}>
-        <Button size="sm" variant="outline" onClick={onEdit}>Editar</Button>
-        <Button size="sm" variant="danger" onClick={onDelete}>Eliminar</Button>
+      <div data-graph-ignore-pan="true" style={{ display: "flex", justifyContent: "center", gap: 8, marginTop: 10 }}>
+        <Button size="sm" variant="outline" onClick={onEdit} style={{ padding: "7px 10px" }}>Editar</Button>
+        <Button size="sm" variant="danger" onClick={onDelete} style={{ padding: "7px 10px" }}>Eliminar</Button>
       </div>
     </div>
   );

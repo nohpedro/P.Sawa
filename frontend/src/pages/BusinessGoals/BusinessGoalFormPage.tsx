@@ -45,7 +45,7 @@ export default function BusinessGoalFormPage() {
   }, [id]);
 
   const save = async () => {
-    const normalizedDraft = applyGoalRenewalDefaults(draft, {});
+    const normalizedDraft = applyGoalRenewalDefaults(id ? draft : { ...draft, estado: "activa" }, {});
     const validation = validateGoalDraft(normalizedDraft);
     if (validation) {
       setToast({ open: true, message: validation, type: "error" });
@@ -65,8 +65,8 @@ export default function BusinessGoalFormPage() {
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <GoalNav />
-      <Card title={id ? "Editar meta" : "Crear meta"} subtitle="Datos principales y configuracion de renovacion.">
-        {loading && id ? <Loader label="Cargando..." /> : <GoalForm value={draft} onChange={setDraft} />}
+      <Card title={id ? "Editar meta" : "Crear meta"} subtitle={id ? "Actualiza los datos de la meta." : "Completa solo lo necesario. Las opciones avanzadas se muestran al activarlas."}>
+        {loading && id ? <Loader label="Cargando..." /> : <GoalForm value={draft} onChange={setDraft} mode={id ? "edit" : "create"} />}
         <div style={{ marginTop: 16 }}><Button onClick={save} disabled={loading || !draft.nombre.trim()} fullWidth>{loading ? <Loader label="Guardando..." /> : "Guardar meta"}</Button></div>
       </Card>
       <Toast open={toast.open} message={toast.message} type={toast.type} onClose={() => setToast((t) => ({ ...t, open: false }))} />

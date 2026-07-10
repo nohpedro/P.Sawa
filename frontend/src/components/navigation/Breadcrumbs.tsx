@@ -19,6 +19,8 @@ function labelFor(path: string) {
       return "Usuarios y roles";
     case PATHS.inventory:
       return "Inventario";
+    case PATHS.inventoryBatchHistory:
+      return "Historial de lotes";
     case PATHS.inventoryPromotions:
       return "Promociones";
     case PATHS.businessGoalsDashboard:

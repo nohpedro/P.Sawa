@@ -101,7 +101,7 @@ export interface InventoryProductSale {
 
 export interface InventoryProductSaleWriteDTO {
   item: string;
-  cliente?: string | null;
+  cliente: string;
   reserva?: string | null;
   cantidad: string;
   precio_unitario?: string;

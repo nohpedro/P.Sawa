@@ -12,6 +12,7 @@ export const PATHS = {
   customerDetail: "/admin/clientes/:id",
   usersRoles: "/admin/usuarios-roles",
   inventory: "/admin/inventario",
+  inventoryBatchHistory: "/admin/inventario/historial-lotes",
   inventoryPromotions: "/admin/inventario/promociones",
   businessGoalsDashboard: "/admin/metas-empresariales",
   businessGoalsList: "/admin/metas-empresariales/listado",

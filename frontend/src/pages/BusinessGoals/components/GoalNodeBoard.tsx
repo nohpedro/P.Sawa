@@ -1,302 +1,514 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import GraphZoomToolbar from "../../../components/visualGraph/GraphZoomToolbar";
 import type { BusinessFixedExpense, BusinessGoal, BusinessGoalConnection, BusinessGoalNode } from "../../../models/businessGoals";
 import { formatBolivianos } from "../../../utils/currency";
-import { panelStyle } from "../constants";
-import GoalNodeCard from "./GoalNodeCard";
+import {
+  clampGraphPoint,
+  edgeConnectionPoints,
+  graphWidthPercent,
+  pointerToGraphPoint,
+  stackedGraphPoint,
+  type GraphPoint,
+  type GraphSize,
+} from "../../../utils/visualGraph";
 
-const NODE_WIDTH = 210;
-const NODE_HEIGHT = 146;
-const NODE_BASE_X = 520;
-const NODE_BASE_Y = 70;
-const NODE_ROW_GAP = 172;
-const NODE_COL_GAP = 270;
+const graphSize: GraphSize = { width: 1000, height: 620 };
+const graphPanPadding = 180;
+const goalNodeSize: GraphSize = { width: 150, height: 108 };
+const variableNodeSize: GraphSize = { width: 155, height: 78 };
+const defaultGoalNode: GraphPoint = { x: 150, y: 310 };
 
-type NodePosition = { x: number; y: number };
 export type AutomaticVariableKind = "ventas" | "reservas";
 
-const automaticVariables: Array<{ kind: AutomaticVariableKind; label: string; description: string }> = [
-  { kind: "ventas", label: "Ventas de productos", description: "Suma ventas registradas en inventario." },
-  { kind: "reservas", label: "Reservas", description: "Suma reservas no canceladas del periodo." },
-];
+type VisualNodeKind = "assigned" | "expense" | "automatic";
+type DraggingNode = { id: string; offset: GraphPoint };
+type PanningGraph = { x: number; y: number; scrollLeft: number; scrollTop: number };
+
+type VisualNode = {
+  id: string;
+  kind: VisualNodeKind;
+  title: string;
+  subtitle: string;
+  detail: string;
+  assigned: boolean;
+  node?: BusinessGoalNode;
+  pendingExpense?: BusinessFixedExpense;
+  pendingAutomaticKind?: AutomaticVariableKind;
+};
+
+export type PendingGoalVariable =
+  | { type: "expense"; expense: BusinessFixedExpense }
+  | { type: "automatic"; kind: AutomaticVariableKind; label: string; description: string };
 
 function nodeConfigValue(node: BusinessGoalNode, key: string): string {
   const value = node.config?.[key];
   return typeof value === "string" || typeof value === "number" ? String(value) : "";
 }
 
-function overlaps(a: NodePosition, b: NodePosition): boolean {
-  return (
-    a.x < b.x + NODE_WIDTH + 18 &&
-    a.x + NODE_WIDTH + 18 > b.x &&
-    a.y < b.y + NODE_HEIGHT + 18 &&
-    a.y + NODE_HEIGHT + 18 > b.y
-  );
+function getVariablePoint(index: number, total: number): GraphPoint {
+  return stackedGraphPoint(index, total, 760, 86, 534);
 }
 
-function layoutNodes(nodes: BusinessGoalNode[]): Array<{ node: BusinessGoalNode; position: NodePosition }> {
-  const placed: NodePosition[] = [];
-  return nodes.map((node, index) => {
-    let x = Number.isFinite(node.posicion_x) && node.posicion_x >= NODE_BASE_X ? node.posicion_x : NODE_BASE_X + Math.floor(index / 3) * NODE_COL_GAP;
-    let y = Number.isFinite(node.posicion_y) && node.posicion_y >= 24 ? node.posicion_y : NODE_BASE_Y + (index % 3) * NODE_ROW_GAP;
-    let guard = 0;
+function toGraphWidth(width: number): string {
+  return graphWidthPercent(width, graphSize.width);
+}
 
-    while (placed.some((position) => overlaps({ x, y }, position)) && guard < 80) {
-      y += NODE_ROW_GAP;
-      if (y > 560) {
-        x += NODE_COL_GAP;
-        y = NODE_BASE_Y;
-      }
-      guard += 1;
-    }
+function toGraphPoint(event: PointerEvent<HTMLElement>, rect: DOMRect, zoom: number): GraphPoint {
+  return pointerToGraphPoint(event, rect, graphSize, zoom, graphPanPadding);
+}
 
-    const position = { x, y };
-    placed.push(position);
-    return { node, position };
-  });
+function connectionPoints(goalPoint: GraphPoint, variablePoint: GraphPoint) {
+  return edgeConnectionPoints(goalPoint, variablePoint, goalNodeSize, variableNodeSize);
+}
+
+function assignedNodeDetail(node: BusinessGoalNode): string {
+  const amount = formatBolivianos(node.valor);
+  const percent = Number(node.porcentaje) > 0 ? ` / ${node.porcentaje}%` : "";
+  return `${amount}${percent}`;
+}
+
+function isFixedExpenseVisualNode(visualNode: VisualNode): boolean {
+  return Boolean(visualNode.node && nodeConfigValue(visualNode.node, "fixed_expense_id"));
+}
+
+function visualNodePalette(visualNode: VisualNode) {
+  const fixedExpense = isFixedExpenseVisualNode(visualNode);
+  if (fixedExpense) {
+    return {
+      border: visualNode.assigned ? "#f59e0b" : "rgba(245,158,11,0.58)",
+      background: visualNode.assigned ? "rgba(245,158,11,0.16)" : "rgba(245,158,11,0.08)",
+      text: "#fbbf24",
+      shadow: visualNode.assigned ? "0 12px 30px rgba(245,158,11,0.10)" : "none",
+    };
+  }
+
+  return {
+    border: visualNode.assigned ? "#8ee59f" : "var(--color-border)",
+    background: visualNode.assigned ? "rgba(142,229,159,0.12)" : "#0f1420",
+    text: visualNode.assigned ? "#8ee59f" : "#94a3b8",
+    shadow: visualNode.assigned ? "0 12px 30px rgba(142,229,159,0.08)" : "none",
+  };
 }
 
 export default function GoalNodeBoard({
   goal,
   nodes,
   connections,
-  expenses,
-  onDropExpense,
-  onDropAutomaticVariable,
   onEditNode,
   onDeleteNode,
   onMoveNode,
   onEditConnection,
+  pendingVariable,
+  onRequestVariablePicker,
+  onConnectExistingNode,
+  onAssignPendingExpense,
+  onAssignPendingAutomatic,
 }: {
   goal: BusinessGoal;
   nodes: BusinessGoalNode[];
   connections: BusinessGoalConnection[];
-  expenses: BusinessFixedExpense[];
-  onDropExpense: (expense: BusinessFixedExpense) => void;
-  onDropAutomaticVariable: (kind: AutomaticVariableKind) => void;
   onEditNode: (node: BusinessGoalNode) => void;
   onDeleteNode: (node: BusinessGoalNode) => void;
-  onMoveNode: (node: BusinessGoalNode, position: NodePosition) => void;
+  onMoveNode: (node: BusinessGoalNode, position: GraphPoint) => void;
   onEditConnection: (connection: BusinessGoalConnection) => void;
+  pendingVariable?: PendingGoalVariable | null;
+  onRequestVariablePicker: () => void;
+  onConnectExistingNode: (node: BusinessGoalNode) => void;
+  onAssignPendingExpense: (expense: BusinessFixedExpense) => void;
+  onAssignPendingAutomatic: (kind: AutomaticVariableKind) => void;
 }) {
-  const canvasRef = useRef<HTMLDivElement | null>(null);
-  const [draftPositions, setDraftPositions] = useState<Record<string, NodePosition>>({});
-  const [dragging, setDragging] = useState<{ id: string; pointerId: number; offsetX: number; offsetY: number } | null>(null);
+  const graphViewportRef = useRef<HTMLDivElement | null>(null);
+  const graphRef = useRef<HTMLDivElement | null>(null);
+
+  const [nodePositions, setNodePositions] = useState<Record<string, GraphPoint>>({});
+  const [draggingNode, setDraggingNode] = useState<DraggingNode | null>(null);
+  const [dragLine, setDragLine] = useState<{ to: GraphPoint } | null>(null);
+  const [panningGraph, setPanningGraph] = useState<PanningGraph | null>(null);
+  const [zoom, setZoom] = useState(1);
+
   const goalNode = nodes.find((node) => node.config?.role === "goal_target");
   const variableNodes = nodes.filter((node) => node.config?.role !== "goal_target");
-  const laidOutNodes = useMemo(() => layoutNodes(variableNodes), [variableNodes]);
-  const positionedNodes = laidOutNodes.map(({ node, position }) => ({ node, position: draftPositions[node.id] ?? position }));
-  const positionByNode = new Map(positionedNodes.map(({ node, position }) => [node.id, position]));
-  const assignedExpenseIds = new Set(variableNodes.map((node) => nodeConfigValue(node, "fixed_expense_id")).filter(Boolean));
-  const availableExpenses = expenses.filter((expense) => !assignedExpenseIds.has(expense.id));
-  const assignedAutomaticKinds = new Set(variableNodes.filter((node) => !nodeConfigValue(node, "fixed_expense_id")).map((node) => node.tipo));
-  const availableAutomaticVariables = automaticVariables.filter((variable) => !assignedAutomaticKinds.has(variable.kind));
+  const connectionBySource = new Map(connections.filter((connection) => !goalNode || connection.target === goalNode.id).map((connection) => [connection.source, connection]));
+  const hasReconnectableNodes = variableNodes.some((node) => !connectionBySource.has(node.id));
 
-  const goalX = 34;
-  const goalY = 220;
-  const canvasHeight = Math.max(620, ...positionedNodes.map(({ position }) => position.y + NODE_HEIGHT + 36));
-  const canvasWidth = Math.max(980, ...positionedNodes.map(({ position }) => position.x + NODE_WIDTH + 60));
+  const visualNodes = useMemo<VisualNode[]>(() => {
+    const assigned = variableNodes.map((node) => ({
+      id: `assigned:${node.id}`,
+      kind: "assigned" as const,
+      title: node.etiqueta,
+      subtitle: node.tipo_label ?? node.tipo,
+      detail: assignedNodeDetail(node),
+      assigned: true,
+      node,
+    }));
+
+    if (!pendingVariable) return assigned;
+
+    if (pendingVariable.type === "expense") {
+      return [
+        ...assigned,
+        {
+          id: `pending-expense:${pendingVariable.expense.id}`,
+          kind: "expense" as const,
+          title: pendingVariable.expense.nombre,
+          subtitle: pendingVariable.expense.categoria,
+          detail: formatBolivianos(pendingVariable.expense.monto),
+          assigned: false,
+          pendingExpense: pendingVariable.expense,
+        },
+      ];
+    }
+
+    return [
+      ...assigned,
+      {
+        id: `pending-automatic:${pendingVariable.kind}`,
+        kind: "automatic" as const,
+        title: pendingVariable.label,
+        subtitle: pendingVariable.description,
+        detail: "Soltar linea aqui",
+        assigned: false,
+        pendingAutomaticKind: pendingVariable.kind,
+      },
+    ];
+  }, [nodes, pendingVariable]);
 
   useEffect(() => {
-    setDraftPositions({});
-  }, [nodes.map((node) => `${node.id}:${node.posicion_x}:${node.posicion_y}`).join("|")]);
-
-  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>, node: BusinessGoalNode) => {
-    const target = event.target as HTMLElement;
-    if (target.closest("button,a,input,select,textarea")) return;
-
-    const canvas = canvasRef.current;
-    const position = positionByNode.get(node.id);
-    if (!canvas || !position) return;
-
-    const rect = canvas.getBoundingClientRect();
-    setDragging({
-      id: node.id,
-      pointerId: event.pointerId,
-      offsetX: event.clientX - rect.left + canvas.scrollLeft - position.x,
-      offsetY: event.clientY - rect.top + canvas.scrollTop - position.y,
+    setDraggingNode(null);
+    setDragLine(null);
+    setPanningGraph(null);
+    setNodePositions((current) => {
+      const next: Record<string, GraphPoint> = {};
+      visualNodes.forEach((visualNode, index) => {
+        const stored = visualNode.node && visualNode.node.posicion_x >= 650
+          ? { x: visualNode.node.posicion_x, y: visualNode.node.posicion_y }
+          : null;
+        next[visualNode.id] = current[visualNode.id] ?? stored ?? getVariablePoint(index, visualNodes.length);
+      });
+      return next;
     });
-    canvas.setPointerCapture(event.pointerId);
+  }, [visualNodes]);
+
+  const startNodeDrag = (event: PointerEvent<HTMLElement>, visualNode: VisualNode) => {
+    if (dragLine) return;
+    const rect = graphRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const point = toGraphPoint(event, rect, zoom);
+    const current = nodePositions[visualNode.id] ?? point;
+    setDraggingNode({ id: visualNode.id, offset: { x: point.x - current.x, y: point.y - current.y } });
   };
 
-  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
+  const startGraphPan = (event: PointerEvent<HTMLDivElement>) => {
+    if (draggingNode || dragLine) return;
+    const target = event.target;
+    if (target instanceof Element && target.closest("[data-graph-ignore-pan='true']")) return;
+    const viewport = graphViewportRef.current;
+    if (!viewport) return;
 
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = Math.max(300, event.clientX - rect.left + canvas.scrollLeft - dragging.offsetX);
-    const y = Math.max(24, event.clientY - rect.top + canvas.scrollTop - dragging.offsetY);
-    setDraftPositions((state) => ({ ...state, [dragging.id]: { x: Math.round(x), y: Math.round(y) } }));
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setPanningGraph({
+      x: event.clientX,
+      y: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    });
   };
 
-  const handlePointerUp = (event: ReactPointerEvent<HTMLDivElement>) => {
-    if (!dragging) return;
-
-    const node = variableNodes.find((item) => item.id === dragging.id);
-    let position = draftPositions[dragging.id] ?? positionByNode.get(dragging.id);
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const rect = canvas.getBoundingClientRect();
-      position = {
-        x: Math.round(Math.max(300, event.clientX - rect.left + canvas.scrollLeft - dragging.offsetX)),
-        y: Math.round(Math.max(24, event.clientY - rect.top + canvas.scrollTop - dragging.offsetY)),
-      };
+  const startLineDrag = (event: PointerEvent<HTMLElement>) => {
+    if (!pendingVariable && !hasReconnectableNodes) {
+      event.stopPropagation();
+      onRequestVariablePicker();
+      return;
     }
-    if (node && position) onMoveNode(node, position);
 
-    if (canvasRef.current?.hasPointerCapture(dragging.pointerId)) {
-      canvasRef.current.releasePointerCapture(dragging.pointerId);
+    const rect = graphRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    event.stopPropagation();
+    setDraggingNode(null);
+    setDragLine({ to: toGraphPoint(event, rect, zoom) });
+  };
+
+  const moveDrag = (event: PointerEvent<HTMLDivElement>) => {
+    if (panningGraph) {
+      const viewport = graphViewportRef.current;
+      if (!viewport) return;
+      viewport.scrollLeft = panningGraph.scrollLeft - (event.clientX - panningGraph.x);
+      viewport.scrollTop = panningGraph.scrollTop - (event.clientY - panningGraph.y);
+      return;
     }
-    setDragging(null);
-    event.preventDefault();
+
+    const rect = graphRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const point = toGraphPoint(event, rect, zoom);
+
+    if (draggingNode) {
+      const nextPoint = clampGraphPoint({ x: point.x - draggingNode.offset.x, y: point.y - draggingNode.offset.y }, graphSize, variableNodeSize);
+      setNodePositions((current) => ({ ...current, [draggingNode.id]: nextPoint }));
+      return;
+    }
+
+    if (dragLine) setDragLine({ to: point });
+  };
+
+  const finishDrag = () => {
+    if (draggingNode) {
+      const visualNode = visualNodes.find((item) => item.id === draggingNode.id);
+      const point = nodePositions[draggingNode.id];
+      if (visualNode?.node && point) onMoveNode(visualNode.node, { x: Math.round(point.x), y: Math.round(point.y) });
+    }
+    if (draggingNode) setDraggingNode(null);
+    if (dragLine) setDragLine(null);
+    if (panningGraph) setPanningGraph(null);
+  };
+
+  const cancelDrag = () => {
+    if (draggingNode) setDraggingNode(null);
+    if (dragLine) setDragLine(null);
+    if (panningGraph) setPanningGraph(null);
+  };
+
+  const assignPendingVariable = (visualNode: VisualNode) => {
+    if (!dragLine) return;
+    setDragLine(null);
+    if (visualNode.pendingExpense) onAssignPendingExpense(visualNode.pendingExpense);
+    if (visualNode.pendingAutomaticKind) onAssignPendingAutomatic(visualNode.pendingAutomaticKind);
   };
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "minmax(230px, 300px) minmax(0, 1fr)", gap: 14 }}>
-      <div style={{ ...panelStyle, display: "grid", gap: 10, alignContent: "start" }}>
-        <div>
-          <div style={{ fontWeight: 950 }}>Gastos fijos</div>
-          <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Arrastra un gasto sobre la meta.</div>
-        </div>
-
-        {availableExpenses.map((expense) => (
-          <div
-            key={expense.id}
-            draggable
-            onDragStart={(event) => event.dataTransfer.setData("text/plain", expense.id)}
-            style={{
-              border: "1px solid var(--color-border)",
-              borderRadius: 8,
-              background: "#111827",
-              padding: 12,
-              cursor: "grab",
-            }}
-          >
-            <strong>{expense.nombre}</strong>
-            <div style={{ color: "#ffd24a", fontWeight: 900, fontSize: 13, marginTop: 5 }}>{formatBolivianos(expense.monto)}</div>
-            <div style={{ color: "var(--color-text-muted)", fontSize: 11, marginTop: 4 }}>
-              {expense.categoria} - {expense.frecuencia} - {expense.estado}
-            </div>
-          </div>
-        ))}
-
-        {availableExpenses.length === 0 && <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No hay gastos pendientes por asignar.</div>}
-
-        <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 12, marginTop: 4 }}>
-          <div style={{ fontWeight: 950 }}>Variables automaticas</div>
-          <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Arrastra ventas o reservas para que alimenten la meta.</div>
-        </div>
-
-        {availableAutomaticVariables.map((variable) => (
-          <div
-            key={variable.kind}
-            draggable
-            onDragStart={(event) => event.dataTransfer.setData("application/x-goal-variable", variable.kind)}
-            style={{
-              border: "1px solid rgba(216,240,106,0.42)",
-              borderRadius: 8,
-              background: "#101927",
-              padding: 12,
-              cursor: "grab",
-            }}
-          >
-            <strong>{variable.label}</strong>
-            <div style={{ color: "var(--color-text-muted)", fontSize: 11, marginTop: 5 }}>{variable.description}</div>
-          </div>
-        ))}
+    <div style={{ display: "grid", gap: 14 }}>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+        <span style={{ border: "1px solid var(--color-border)", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 900 }}>
+          {goal.nombre}
+        </span>
+        <span style={{ border: "1px solid var(--color-border)", borderRadius: 999, padding: "6px 10px", fontSize: 12, fontWeight: 900 }}>
+          Asignadas: {variableNodes.length}
+        </span>
+        <span style={{ color: "var(--color-text-muted)", fontSize: 12, marginLeft: "auto" }}>
+          {pendingVariable || hasReconnectableNodes ? "Arrastra desde el punto amarillo hacia una variable." : "Pulsa el punto amarillo para seleccionar una variable."}
+        </span>
       </div>
 
-      <div
-        ref={canvasRef}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
-        onDragOver={(event) => event.preventDefault()}
-        onDrop={(event) => {
-          event.preventDefault();
-          const automaticKind = event.dataTransfer.getData("application/x-goal-variable") as AutomaticVariableKind;
-          if (automaticKind) {
-            onDropAutomaticVariable(automaticKind);
-            return;
-          }
-          const expense = expenses.find((item) => item.id === event.dataTransfer.getData("text/plain"));
-          if (expense) onDropExpense(expense);
-        }}
-        style={{ ...panelStyle, position: "relative", minHeight: 620, overflow: "auto", background: "#0b101a" }}
-      >
-        <div style={{ position: "relative", minWidth: canvasWidth, minHeight: canvasHeight }}>
-        <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none" }}>
-          {connections.map((connection) => {
-            const sourcePosition = positionByNode.get(connection.source);
-            if (!sourcePosition || (goalNode && connection.target !== goalNode.id)) return null;
-            return (
-              <g key={connection.id}>
-                <line
-                  x1={goalX + 214}
-                  y1={goalY + 58}
-                  x2={sourcePosition.x}
-                  y2={sourcePosition.y + 58}
-                  stroke="transparent"
-                  strokeWidth={18}
-                  style={{ cursor: "pointer", pointerEvents: "stroke" }}
-                  onClick={() => onEditConnection(connection)}
-                />
-                <line
-                  x1={goalX + 214}
-                  y1={goalY + 58}
-                  x2={sourcePosition.x}
-                  y2={sourcePosition.y + 58}
-                  stroke="#d8f06a"
-                  strokeWidth={4}
-                  opacity={0.88}
-                  pointerEvents="none"
-                />
-              </g>
-            );
-          })}
-        </svg>
+      <GraphZoomToolbar zoom={zoom} onZoomChange={setZoom} />
 
+      <div
+        ref={graphViewportRef}
+        onPointerDown={startGraphPan}
+        onPointerMove={moveDrag}
+        onPointerUp={finishDrag}
+        onPointerLeave={cancelDrag}
+        style={{
+          position: "relative",
+          height: graphSize.height,
+          minHeight: graphSize.height,
+          maxHeight: graphSize.height,
+          border: "1px solid rgba(255,210,74,0.22)",
+          borderRadius: 10,
+          overflow: "auto",
+          cursor: panningGraph ? "grabbing" : "grab",
+          background:
+            "linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(0deg, rgba(255,255,255,0.035) 1px, transparent 1px), #070b13",
+          backgroundSize: "46px 46px",
+        }}
+      >
         <div
+          ref={graphRef}
           style={{
-            position: "absolute",
-            left: goalX,
-            top: goalY,
-            width: 230,
-            minHeight: 116,
-            border: "2px solid #ffd24a",
-            borderRadius: 8,
-            padding: 14,
-            background: "linear-gradient(90deg, rgba(255,210,74,0.16), rgba(255,255,255,0.02))",
+            position: "relative",
+            width: `${zoom * 100}%`,
+            height: graphSize.height * zoom + graphPanPadding * 2,
+            minHeight: graphSize.height + graphPanPadding * 2,
           }}
         >
-          <div style={{ color: "#ffd24a", fontSize: 11, fontWeight: 950 }}>META</div>
-          <h3 style={{ margin: "8px 0 0", fontSize: 18 }}>{goal.nombre}</h3>
-          <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 8 }}>
-            Objetivo {formatBolivianos(goal.monto_objetivo)}
-          </div>
-          <div style={{ color: goal.progress?.cumplimiento_estimado ? "#8ee59f" : "#ffb4b4", fontSize: 12, fontWeight: 950, marginTop: 8 }}>
-            {goal.progress?.cumplimiento_estimado ? "Proyeccion favorable" : "Proyeccion en riesgo"}
-          </div>
-        </div>
+          <svg
+            viewBox={`0 0 ${graphSize.width} ${graphSize.height}`}
+            preserveAspectRatio="none"
+            style={{
+              position: "absolute",
+              left: 0,
+              top: graphPanPadding,
+              width: "100%",
+              height: graphSize.height * zoom,
+              pointerEvents: "none",
+            }}
+          >
+            <defs>
+              <linearGradient id="goalAssignedLine" gradientUnits="userSpaceOnUse" x1="0" x2={graphSize.width} y1="0" y2="0">
+                <stop offset="0%" stopColor="#ffd24a" />
+                <stop offset="100%" stopColor="#8ee59f" />
+              </linearGradient>
+            </defs>
 
-        {positionedNodes.map(({ node, position }) => (
-          <GoalNodeCard
-            key={node.id}
-            node={node}
-            position={position}
-            selected={dragging?.id === node.id}
-            onPointerDown={(event) => handlePointerDown(event, node)}
-            onEdit={() => onEditNode(node)}
-            onDelete={() => onDeleteNode(node)}
-          />
-        ))}
+            {visualNodes.map((visualNode, index) => {
+              if (!visualNode.assigned) return null;
+              const point = nodePositions[visualNode.id] ?? getVariablePoint(index, visualNodes.length);
+              const line = connectionPoints(defaultGoalNode, point);
+              const connection = visualNode.node ? connectionBySource.get(visualNode.node.id) : null;
+              if (!connection) return null;
 
-        {connections.length > 0 && (
-          <div style={{ position: "absolute", right: 14, top: 14, width: 230, ...panelStyle, background: "#111827", fontSize: 12, color: "var(--color-text-muted)" }}>
-            Click en una linea para editarla o eliminar la relacion.
+              return (
+                <g
+                  key={visualNode.id}
+                  data-graph-ignore-pan="true"
+                  style={{ pointerEvents: "auto", cursor: connection ? "pointer" : "default" }}
+                  onClick={() => {
+                    if (connection) onEditConnection(connection);
+                  }}
+                >
+                  <line x1={line.from.x} y1={line.from.y} x2={line.to.x} y2={line.to.y} stroke="transparent" strokeWidth="28" />
+                  <line
+                    x1={line.from.x}
+                    y1={line.from.y}
+                    x2={line.to.x}
+                    y2={line.to.y}
+                    stroke="url(#goalAssignedLine)"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                  />
+                  <circle cx={line.to.x} cy={line.to.y} r="7" fill="#8ee59f" />
+                </g>
+              );
+            })}
+            {dragLine && (
+              <line
+                x1={defaultGoalNode.x + goalNodeSize.width / 2}
+                y1={defaultGoalNode.y}
+                x2={dragLine.to.x}
+                y2={dragLine.to.y}
+                stroke="#ffd24a"
+                strokeWidth="5"
+                strokeLinecap="round"
+                strokeDasharray="14 10"
+              />
+            )}
+
+          </svg>
+
+          <div
+            data-graph-ignore-pan="true"
+            role="button"
+            tabIndex={0}
+            style={{
+              position: "absolute",
+              left: `${(defaultGoalNode.x / graphSize.width) * 100}%`,
+              top: graphPanPadding + (defaultGoalNode.y / graphSize.height) * graphSize.height * zoom,
+              transform: "translate(-50%, -50%)",
+              width: toGraphWidth(goalNodeSize.width),
+              minHeight: 118,
+              boxSizing: "border-box",
+              border: "2px solid #ffd24a",
+              borderRadius: 16,
+              background: "linear-gradient(135deg, rgba(255,210,74,0.24), #111827 62%)",
+              color: "#f8fafc",
+              boxShadow: "0 18px 46px rgba(255,210,74,0.12)",
+              cursor: "grab",
+              padding: 14,
+              textAlign: "center",
+              touchAction: "none",
+              userSelect: "none",
+            }}
+          >
+            <div style={{ fontSize: 11, color: "#ffd24a", fontWeight: 950, textTransform: "uppercase" }}>Meta</div>
+            <div style={{ fontSize: 18, fontWeight: 950, marginTop: 6, lineHeight: 1.15 }}>{goal.nombre}</div>
+            <div style={{ fontSize: 11, color: "#cbd5e1", marginTop: 8 }}>{pendingVariable || hasReconnectableNodes ? "Mueve o conecta" : "Selecciona variable"}</div>
+            <span
+              data-graph-ignore-pan="true"
+              role="button"
+              tabIndex={0}
+                aria-label={pendingVariable || hasReconnectableNodes ? "Crear conexion" : "Seleccionar variable"}
+              onPointerDown={startLineDrag}
+              style={{
+                position: "absolute",
+                right: -10,
+                top: "50%",
+                width: 20,
+                height: 20,
+                transform: "translateY(-50%)",
+                borderRadius: "50%",
+                border: "2px solid #070b13",
+                background: "#ffd24a",
+                boxShadow: "0 0 0 5px rgba(255,210,74,0.20)",
+                cursor: pendingVariable || hasReconnectableNodes ? "crosshair" : "pointer",
+              }}
+            />
           </div>
-        )}
+
+          {visualNodes.map((visualNode, index) => {
+            const point = nodePositions[visualNode.id] ?? getVariablePoint(index, visualNodes.length);
+            const palette = visualNodePalette(visualNode);
+            return (
+              <button
+                key={visualNode.id}
+                data-graph-ignore-pan="true"
+                type="button"
+                onDoubleClick={(event) => {
+                  event.stopPropagation();
+                  if (visualNode.node) onEditNode(visualNode.node);
+                }}
+                onContextMenu={(event) => {
+                  if (!visualNode.node) return;
+                  event.preventDefault();
+                  onDeleteNode(visualNode.node);
+                }}
+                onPointerDown={(event) => startNodeDrag(event, visualNode)}
+                onPointerUp={(event) => {
+                  event.stopPropagation();
+                  if (dragLine) assignPendingVariable(visualNode);
+                  if (dragLine && visualNode.node && !connectionBySource.has(visualNode.node.id)) {
+                    onConnectExistingNode(visualNode.node);
+                  }
+                  if (draggingNode?.id === visualNode.id && visualNode.node) {
+                    const point = nodePositions[visualNode.id];
+                    if (point) onMoveNode(visualNode.node, { x: Math.round(point.x), y: Math.round(point.y) });
+                  }
+                  setDraggingNode(null);
+                }}
+                style={{
+                  position: "absolute",
+                  left: `${(point.x / graphSize.width) * 100}%`,
+                  top: graphPanPadding + (point.y / graphSize.height) * graphSize.height * zoom,
+                  transform: "translate(-50%, -50%)",
+                  width: toGraphWidth(variableNodeSize.width),
+                  minHeight: 86,
+                  boxSizing: "border-box",
+                  border: `1px solid ${palette.border}`,
+                  borderRadius: 12,
+                  background: palette.background,
+                  color: "var(--color-text)",
+                  padding: 12,
+                  cursor: draggingNode?.id === visualNode.id ? "grabbing" : "grab",
+                  boxShadow: palette.shadow,
+                  touchAction: "none",
+                  userSelect: "none",
+                }}
+                title={visualNode.node ? "Doble click para editar. Click derecho para eliminar." : "Suelta la linea aqui para asignar."}
+              >
+                {isFixedExpenseVisualNode(visualNode) && (
+                  <div style={{ color: "#fbbf24", fontSize: 10, fontWeight: 950, textTransform: "uppercase", marginBottom: 5 }}>
+                    Gasto fijo
+                  </div>
+                )}
+                <div style={{ fontSize: 13, fontWeight: 950, lineHeight: 1.2 }}>{visualNode.title}</div>
+                <div style={{ color: palette.text, fontSize: 11, fontWeight: 900, marginTop: 8, lineHeight: 1.25 }}>
+                  {visualNode.assigned ? `${visualNode.detail}` : visualNode.detail}
+                </div>
+              </button>
+            );
+          })}
+
+          {visualNodes.length === 0 && (
+            <div
+              style={{
+                position: "absolute",
+                inset: 0,
+                display: "grid",
+                placeItems: "center",
+                color: "var(--color-text-muted)",
+                fontSize: 13,
+              }}
+            >
+              No hay variables para mostrar.
+            </div>
+          )}
         </div>
       </div>
     </div>

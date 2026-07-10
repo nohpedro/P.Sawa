@@ -29,6 +29,12 @@ const panelStyle: CSSProperties = {
   padding: 14,
 };
 
+const helperPanelStyle: CSSProperties = {
+  ...panelStyle,
+  borderColor: "rgba(255,210,74,0.28)",
+  background: "rgba(255,210,74,0.06)",
+};
+
 function money(value: string | number | null | undefined) {
   const n = Number(value ?? 0);
   return `Bs ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
@@ -54,6 +60,7 @@ export default function ProductSalesPage() {
   const [selectedItemId, setSelectedItemId] = useState("");
   const [clienteId, setClienteId] = useState("");
   const [productQuery, setProductQuery] = useState("");
+  const [availableProductQuery, setAvailableProductQuery] = useState("");
   const [clientQuery, setClientQuery] = useState("");
   const [productsModalOpen, setProductsModalOpen] = useState(false);
   const [cartLines, setCartLines] = useState<SaleCartLine[]>([]);
@@ -73,6 +80,11 @@ export default function ProductSalesPage() {
     if (!q) return items;
     return items.filter((item) => itemSearchText(item).includes(q));
   }, [items, productQuery]);
+  const modalFilteredItems = useMemo(() => {
+    const q = availableProductQuery.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((item) => itemSearchText(item).includes(q));
+  }, [availableProductQuery, items]);
   const filteredClients = useMemo(() => {
     const q = clientQuery.trim().toLowerCase();
     if (!q) return clients.slice(0, 8);
@@ -89,13 +101,16 @@ export default function ProductSalesPage() {
   const receivedAmount = hasValidReceivedAmount ? parsedReceivedAmount : 0;
   const change = Math.max(0, receivedAmount - cartTotal);
   const missing = Math.max(0, cartTotal - receivedAmount);
+  const paymentCoversTotal = hasValidReceivedAmount && cartTotal > 0 && receivedAmount >= cartTotal;
   const stock = Number(selectedItem?.stock_actual ?? 0);
   const cartStockIssue = cartLines.find((line) => Number(line.quantity) > Number(line.item.stock_actual));
+  const hasSelectedClient = Boolean(selectedClient?.id);
   const selectedExistingQuantity = cartLines
     .filter((line) => line.item.id === selectedItem?.id)
     .reduce((sum, line) => sum + Number(line.quantity || 0), 0);
+  const selectedLineTotal = selectedItem ? Number(quantity || 0) * Number(unitPrice || 0) : 0;
   const canAddSelected = !!selectedItem && Number(quantity) > 0 && Number(quantity) + selectedExistingQuantity <= stock && Number(unitPrice) > 0;
-  const canSubmit = cartLines.length > 0 && !cartStockIssue && hasValidReceivedAmount;
+  const canSubmit = cartLines.length > 0 && hasSelectedClient && !cartStockIssue && paymentCoversTotal;
 
   const load = async () => {
     setLoading(true);
@@ -162,9 +177,22 @@ export default function ProductSalesPage() {
     setCartLines((current) => current.filter((line) => line.item.id !== itemId));
   };
 
+  const openProductsModal = () => {
+    setAvailableProductQuery("");
+    setProductsModalOpen(true);
+  };
+
   const onSubmit = async () => {
+    if (!selectedClient) {
+      setToast({ open: true, message: "Selecciona un cliente para registrar la venta.", type: "error" });
+      return;
+    }
     if (!hasValidReceivedAmount) {
       setToast({ open: true, message: "Ingresa el monto recibido para registrar la venta.", type: "error" });
+      return;
+    }
+    if (!paymentCoversTotal) {
+      setToast({ open: true, message: "El monto recibido debe cubrir el total de la venta.", type: "error" });
       return;
     }
     if (!canSubmit) return;
@@ -173,7 +201,7 @@ export default function ProductSalesPage() {
       for (const line of cartLines) {
         await inventoryService.createProductSale({
           item: line.item.id,
-          cliente: clienteId || null,
+          cliente: selectedClient.id,
           cantidad: line.quantity,
           notas: notes.trim() || undefined,
         });
@@ -206,7 +234,7 @@ export default function ProductSalesPage() {
             <Button variant="outline" onClick={() => void load()} disabled={loading}>
               Refrescar
             </Button>
-            <Button onClick={() => setProductsModalOpen(true)} disabled={loading}>
+            <Button onClick={openProductsModal} disabled={loading}>
               Productos disponibles
             </Button>
           </div>
@@ -222,8 +250,20 @@ export default function ProductSalesPage() {
       </Card>
 
       <div style={{ display: "grid", gap: 18, alignItems: "start" }}>
-        <Card title="Nueva venta" subtitle="Busca producto y cliente para registrar la venta con menos pasos.">
+        <Card title="Nueva venta" subtitle="Selecciona cliente, agrega productos a la lista y registra el cobro.">
           <div style={{ display: "grid", gap: 12 }}>
+            <div style={{ ...helperPanelStyle, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <div style={{ color: "#ffd24a", fontSize: 12, fontWeight: 950 }}>Cliente</div>
+                <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 3 }}>
+                  Datos del Cliente
+                </div>
+              </div>
+              <strong style={{ color: selectedClient ? "#8ee59f" : "#ffd24a" }}>
+                {selectedClient ? clientName(selectedClient) : "Pendiente"}
+              </strong>
+            </div>
+
             <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 1fr) auto", gap: 10, alignItems: "end" }}>
               <Input
                 label="Buscar producto"
@@ -234,7 +274,7 @@ export default function ProductSalesPage() {
                   if (selectedItem && event.target.value !== selectedItem.nombre) setSelectedItemId("");
                 }}
               />
-              <Button variant="outline" onClick={() => setProductsModalOpen(true)}>
+              <Button variant="outline" onClick={openProductsModal}>
                 Ver disponibles
               </Button>
             </div>
@@ -287,7 +327,7 @@ export default function ProductSalesPage() {
 
             <div style={{ display: "grid", gap: 8 }}>
               <Input
-                label="Buscar cliente (opcional)"
+                label="Buscar cliente"
                 placeholder="Nombre, telefono, documento o email..."
                 value={clientQuery}
                 onChange={(event) => {
@@ -328,20 +368,48 @@ export default function ProductSalesPage() {
                     <strong>{clientName(selectedClient)}</strong>
                   </div>
                   <Button variant="outline" size="sm" onClick={() => { setClienteId(""); setClientQuery(""); }}>
-                    Quitar
+                    Cambiar
                   </Button>
+                </div>
+              )}
+              {!selectedClient && (
+                <div style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
+                  Cliente
                 </div>
               )}
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-              <Input label="Cantidad" type="number" min="0.01" step="0.01" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
-              <Input label="Precio unitario" type="number" min="0.01" step="0.01" value={unitPrice} readOnly disabled />
-            </div>
+            <div style={{ ...panelStyle, display: "grid", gap: 12 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <div>
+                  <div style={{ fontWeight: 950 }}>Producto para agregar</div>
+                  <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 3 }}>
+                    Ajusta cantidad y confirma con el boton principal.
+                  </div>
+                </div>
+                <strong style={{ color: "#ffd24a", fontSize: 18 }}>{money(selectedLineTotal)}</strong>
+              </div>
 
-            <Button variant="outline" onClick={addSelectedToCart} disabled={loading || !canAddSelected} fullWidth>
-              Agregar producto a la lista
-            </Button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                <Input label="Cantidad" type="number" min="0.01" step="0.01" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+                <Input label="Precio unitario" type="number" min="0.01" step="0.01" value={unitPrice} readOnly disabled />
+              </div>
+
+              <Button
+                onClick={addSelectedToCart}
+                disabled={loading || !canAddSelected}
+                fullWidth
+                size="lg"
+                style={{
+                  minHeight: 54,
+                  fontSize: 16,
+                  fontWeight: 950,
+                  boxShadow: canAddSelected ? "0 10px 28px rgba(255,210,74,0.16)" : undefined,
+                }}
+              >
+                {selectedItem ? `Agregar a lista - ${money(selectedLineTotal)}` : "Agregar al carrito"}
+              </Button>
+            </div>
 
             <Input
               label="Monto recibido"
@@ -431,7 +499,7 @@ export default function ProductSalesPage() {
             </div>
 
             <Button onClick={() => void onSubmit()} disabled={loading || !canSubmit} fullWidth size="lg">
-              {loading ? <Loader label="Registrando..." /> : "Registrar venta"}
+              {loading ? <Loader label="Registrando..." /> : selectedClient ? "Registrar venta" : "Cliente"}
             </Button>
           </div>
         </Card>
@@ -487,15 +555,15 @@ export default function ProductSalesPage() {
               <Input
                 label="Buscar producto"
                 placeholder="Nombre, codigo o descripcion..."
-                value={productQuery}
-                onChange={(event) => setProductQuery(event.target.value)}
+                value={availableProductQuery}
+                onChange={(event) => setAvailableProductQuery(event.target.value)}
               />
 
               {loading && <Loader label="Cargando productos..." />}
               {error && <div style={{ color: "#ff5252", fontSize: 13 }}>{error}</div>}
 
               <div style={{ ...panelStyle, display: "grid", gap: 10, maxHeight: 560, overflow: "auto" }}>
-                {filteredItems.map((item) => (
+                {modalFilteredItems.map((item) => (
                   <button
                     key={item.id}
                     type="button"
@@ -543,7 +611,7 @@ export default function ProductSalesPage() {
                     </div>
                   </button>
                 ))}
-                {!loading && filteredItems.length === 0 && (
+                {!loading && modalFilteredItems.length === 0 && (
                   <div style={{ color: "var(--color-text-muted)", fontSize: 13 }}>No hay productos consumibles para venta.</div>
                 )}
               </div>

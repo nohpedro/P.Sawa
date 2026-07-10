@@ -12,8 +12,8 @@ export default function CreateGoalModal({ loading, onClose, onSubmit }: { loadin
   const validation = validateGoalDraft(draft);
   return (
     <ModalShell title="Crear meta" subtitle="Define la meta financiera y su regla de renovacion." onClose={onClose}>
-      <GoalForm value={draft} onChange={setDraft} />
-      <div style={{ marginTop: 16 }}><Button fullWidth disabled={loading || !!validation} onClick={() => onSubmit(draft)}>{loading ? <Loader label="Guardando..." /> : "Crear meta"}</Button></div>
+      <GoalForm value={draft} onChange={setDraft} mode="create" />
+      <div style={{ marginTop: 16 }}><Button fullWidth disabled={loading || !!validation} onClick={() => onSubmit({ ...draft, estado: "activa" })}>{loading ? <Loader label="Guardando..." /> : "Crear meta"}</Button></div>
     </ModalShell>
   );
 }

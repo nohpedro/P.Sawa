@@ -27,7 +27,14 @@ export const MODULE_SECTIONS: Array<{
   {
     title: "Inventario",
     description: "Items, lotes y promociones del inventario.",
-    modules: ["inventory", "inventory_items_create", "inventory_batches", "inventory_sale_margin", "inventory_promotions"],
+    modules: [
+      "inventory",
+      "inventory_items_create",
+      "inventory_batches",
+      "inventory_batch_history",
+      "inventory_sale_margin",
+      "inventory_promotions",
+    ],
   },
   {
     title: "Metas empresariales",

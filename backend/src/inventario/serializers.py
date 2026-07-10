@@ -196,6 +196,17 @@ class InventoryProductSaleSerializer(serializers.ModelSerializer):
     def get_cliente_nombre(self, obj):
         return str(obj.cliente) if obj.cliente_id else ""
 
+    def validate_cliente(self, cliente):
+        if not cliente:
+            raise serializers.ValidationError("Selecciona un cliente para registrar la venta.")
+        return cliente
+
+    def validate(self, attrs):
+        cliente = attrs.get("cliente", getattr(self.instance, "cliente", None))
+        if not cliente:
+            raise serializers.ValidationError({"cliente": "Selecciona un cliente para registrar la venta."})
+        return attrs
+
     def validate_item(self, item):
         if item.tipo != InventoryItemType.CONSUMIBLE:
             raise serializers.ValidationError("Solo se pueden vender items consumibles.")

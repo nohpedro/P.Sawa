@@ -44,6 +44,7 @@ export default function AuthLayout() {
   const navigate = useNavigate();
   const can = (module: ModuleKey) => hasModule(user, module);
   const canInventory = can("inventory");
+  const canInventoryBatchHistory = can("inventory_batch_history");
   const canInventoryPromotions = can("inventory_promotions");
   const [inventoryToast, setInventoryToast] = useState({ open: false, message: "", type: "info" as "info" | "success" | "error" });
 
@@ -115,6 +116,7 @@ export default function AuthLayout() {
       title: "Inventario",
       items: [
         ...(canInventory ? [{ label: "Items y lotes", to: PATHS.inventory, icon: FiPackage, end: true }] : []),
+        ...(canInventoryBatchHistory ? [{ label: "Historial de lotes", to: PATHS.inventoryBatchHistory, icon: FiClock }] : []),
         ...(canInventoryPromotions ? [{ label: "Promociones", to: PATHS.inventoryPromotions, icon: FiTag }] : []),
       ],
     },

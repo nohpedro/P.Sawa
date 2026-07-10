@@ -24,6 +24,7 @@ import UserRolesPage from "../pages/Admin/UserRolesPage.tsx";
 import AuditPage from "../pages/Admin/AuditPage.tsx";
 import MePage from "../pages/Me/MePage.tsx";
 import InventoryPage from "../pages/Inventory/InventoryPage.tsx";
+import BatchHistoryPage from "../pages/Inventory/BatchHistoryPage.tsx";
 import PromotionPage from "../pages/Inventory/PromotionPage.tsx";
 import BusinessGoalDetailPage from "../pages/BusinessGoals/BusinessGoalDetailPage.tsx";
 import BusinessGoalFormPage from "../pages/BusinessGoals/BusinessGoalFormPage.tsx";
@@ -61,6 +62,7 @@ export const routes = [
           { element: <ModuleRoute module="activities" />, children: [{ path: PATHS.adminActividades, element: <ActivitiesPage /> }] },
           { element: <ModuleRoute module="space_activities" />, children: [{ path: PATHS.adminEspacioActividad, element: <SpaceActivitiesPage /> }] },
           { element: <ModuleRoute module="inventory" />, children: [{ path: PATHS.inventory, element: <InventoryPage /> }] },
+          { element: <ModuleRoute module="inventory_batch_history" />, children: [{ path: PATHS.inventoryBatchHistory, element: <BatchHistoryPage /> }] },
           { element: <ModuleRoute module="inventory_promotions" />, children: [{ path: PATHS.inventoryPromotions, element: <PromotionPage /> }] },
           { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalsDashboard, element: <BusinessGoalsDashboardPage /> }] },
           { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalsList, element: <BusinessGoalsListPage /> }] },

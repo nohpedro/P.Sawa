@@ -11,6 +11,7 @@ export const MODULES = [
   { key: "inventory", label: "Inventario" },
   { key: "inventory_items_create", label: "Crear items" },
   { key: "inventory_batches", label: "Registrar lotes" },
+  { key: "inventory_batch_history", label: "Historial de ingreso de lotes" },
   { key: "inventory_promotions", label: "Promociones" },
   { key: "inventory_sale_margin", label: "Editar margen venta" },
   { key: "product_sales", label: "Venta de productos" },

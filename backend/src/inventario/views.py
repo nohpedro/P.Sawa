@@ -23,7 +23,7 @@ BACKENDS = (DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter)
 class InventoryItemViewSet(AuditLogMixin, viewsets.ModelViewSet):
     audit_module = "inventory"
     required_module = "inventory"
-    read_modules = ("inventory", "inventory_promotions", "reservations", "product_sales", "sales_history")
+    read_modules = ("inventory", "inventory_promotions", "inventory_batch_history", "reservations", "product_sales", "sales_history")
     queryset = InventoryItem.objects.annotate(lotes_count=Count("lotes"))
     serializer_class = InventoryItemSerializer
     authentication_classes = AUTH
@@ -64,7 +64,7 @@ class InventoryItemViewSet(AuditLogMixin, viewsets.ModelViewSet):
 class InventoryPurchaseBatchViewSet(AuditLogMixin, viewsets.ModelViewSet):
     audit_module = "inventory"
     required_module = "inventory_batches"
-    read_modules = ("inventory", "inventory_batches")
+    read_modules = ("inventory", "inventory_batches", "inventory_batch_history")
     queryset = InventoryPurchaseBatch.objects.select_related("item", "creado_por")
     serializer_class = InventoryPurchaseBatchSerializer
     authentication_classes = AUTH
@@ -73,6 +73,16 @@ class InventoryPurchaseBatchViewSet(AuditLogMixin, viewsets.ModelViewSet):
     search_fields = ("item__nombre", "proveedor", "notas")
     ordering_fields = ("fecha_compra", "cantidad", "costo_total", "costo_unitario", "created_at")
     filterset_fields = ("item", "compra_por_mayor", "proveedor")
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        fecha_desde = self.request.query_params.get("fecha_desde")
+        fecha_hasta = self.request.query_params.get("fecha_hasta")
+        if fecha_desde:
+            qs = qs.filter(fecha_compra__gte=fecha_desde)
+        if fecha_hasta:
+            qs = qs.filter(fecha_compra__lte=fecha_hasta)
+        return qs
 
     def _ensure_default_margin_for_batch(self, serializer):
         item = serializer.validated_data.get("item") or getattr(serializer.instance, "item", None)
