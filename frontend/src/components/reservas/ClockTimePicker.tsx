@@ -9,20 +9,21 @@ const FIELD_STYLE: React.CSSProperties = {
   background: "#111827",
   color: "#f8fafc",
   outline: "none",
-  padding: "10px 12px",
-  fontSize: 15,
+  padding: "8px 10px",
+  fontSize: 14,
   fontWeight: 800,
   colorScheme: "dark",
 };
 
 const STEP_BUTTON_STYLE: React.CSSProperties = {
-  minHeight: 34,
+  minHeight: 30,
   border: "1px solid #334155",
-  borderRadius: 8,
+  borderRadius: 999,
   background: "#182235",
   color: "#f8fafc",
   cursor: "pointer",
-  fontWeight: 900,
+  fontWeight: 850,
+  fontSize: 12,
 };
 
 function pad2(n: number): string {
@@ -111,18 +112,15 @@ export default function ClockTimePicker({
     <div
       style={{
         display: "grid",
-        gap: 10,
-        border: "1px solid #263244",
-        borderRadius: 8,
-        background: "#0b1220",
-        padding: 10,
+        gap: 7,
+        minWidth: 0,
         color: "#f8fafc",
         opacity: disabled ? 0.65 : 1,
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
-        <label style={{ fontSize: 13, color: "#cbd5e1", fontWeight: 900 }}>{label}</label>
-        <div style={{ fontSize: 20, lineHeight: 1, fontWeight: 950, color: "#ffd24a" }}>
+        <label style={{ fontSize: 12, color: "#cbd5e1", fontWeight: 900 }}>{label}</label>
+        <div style={{ fontSize: 15, lineHeight: 1, fontWeight: 950, color: "#ffd24a" }}>
           {pad2(h)}:{pad2(m)}
         </div>
       </div>
@@ -136,7 +134,7 @@ export default function ClockTimePicker({
         style={FIELD_STYLE}
       />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>
         <TimeButton disabled={disabled} onClick={() => setByMinutes(-60)}>
           -1 h
         </TimeButton>

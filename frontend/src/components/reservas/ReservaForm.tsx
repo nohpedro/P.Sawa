@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import Select from "../ui/Select";
 import Input from "../ui/Input";
 import Button from "../ui/Button";
@@ -9,7 +10,7 @@ import { useTiposActividad } from "../../hooks/useTiposActividad";
 import { useEspacioActividad } from "../../hooks/useEspacioActividad";
 import { useClientes } from "../../hooks/useClientes";
 
-import type { ReservaPromotionCredit, ReservaWriteDTO } from "../../models/reserva";
+import type { Reserva, ReservaPromotionCredit, ReservaWriteDTO } from "../../models/reserva";
 import type { Espacio } from "../../models/espacio";
 import type { InventoryPromotion, InventoryPromotionPriority } from "../../models/inventory";
 import { espacioTieneActividad, calcularCostoPorHora, calcularCostoPorBloques } from "../../utils/reservas";
@@ -25,6 +26,14 @@ import { extractErrorMessage, humanizeReservaError } from "../../utils/apiError"
 
 import TimeRangePicker from "./TimeRangePicker";
 import type { HHMM } from "./ClockTimePicker";
+import {
+  addMinutes,
+  hhmmToMinutes,
+  minutesToHHMM,
+  rangesOverlap,
+  reservationEndMinutes,
+  reservationStartMinutes,
+} from "./reservationTime";
 
 const panelStyle = {
   border: "1px solid #263244",
@@ -32,23 +41,6 @@ const panelStyle = {
   background: "#0b1220",
   padding: 10,
 };
-
-function hhmmToMinutes(v: string): number {
-  const [h, m] = v.split(":").map((x) => Number(x));
-  return h * 60 + m;
-}
-
-function minutesToHHMM(total: number): HHMM {
-  const normalized = ((total % 1440) + 1440) % 1440;
-  const h = Math.floor(normalized / 60);
-  const m = normalized % 60;
-  const pad2 = (n: number) => (n < 10 ? `0${n}` : `${n}`);
-  return `${pad2(h)}:${pad2(m)}` as HHMM;
-}
-
-function addMinutes(hhmm: HHMM, add: number): HHMM {
-  return minutesToHHMM(hhmmToMinutes(hhmm) + add);
-}
 
 function formatNumber(value: number): string {
   return new Intl.NumberFormat("es-BO", {
@@ -128,10 +120,12 @@ function getEspacioEstadoReservaMeta(espacio: Espacio | null): {
 
 export default function ReservaForm({
   day,
+  reservations = [],
   onSubmit,
   loading,
 }: {
   day: string;
+  reservations?: Reserva[];
   loading: boolean;
   onSubmit: (payload: ReservaWriteDTO) => Promise<void>;
 }) {
@@ -153,6 +147,7 @@ export default function ReservaForm({
   const [receivedAmount, setReceivedAmount] = useState("");
   const [uiError, setUiError] = useState<string | null>(null);
   const [createClienteOpen, setCreateClienteOpen] = useState(false);
+  const [recommendedOpen, setRecommendedOpen] = useState(false);
 
   useEffect(() => {
     espacios.list({ page: "1" }).catch(() => {});
@@ -221,6 +216,69 @@ export default function ReservaForm({
 
   const inicioISO = useMemo(() => combineDateAndTimeToISO(day, inicioHHMM), [day, inicioHHMM]);
   const finISO = useMemo(() => combineDateAndTimeToISO(day, finHHMM), [day, finHHMM]);
+  const selectedRangeMinutes = useMemo(() => {
+    return {
+      start: hhmmToMinutes(inicioHHMM),
+      end: hhmmToMinutes(finHHMM),
+    };
+  }, [finHHMM, inicioHHMM]);
+  const recommendedDuration = useMemo(() => {
+    const selectedDuration = selectedRangeMinutes.end - selectedRangeMinutes.start;
+    return Math.max(15, selectedDuration > 0 ? selectedDuration : relEA?.duracion_minutos || 60);
+  }, [relEA?.duracion_minutos, selectedRangeMinutes.end, selectedRangeMinutes.start]);
+
+  const activeReservationsForSpace = useMemo(() => {
+    if (!espacioId) return [];
+    return reservations
+      .filter((reservation) => reservation.espacio === espacioId && !["CANCELADA", "FINALIZADA"].includes(reservation.estado_reserva))
+      .sort((a, b) => new Date(a.inicio).getTime() - new Date(b.inicio).getTime());
+  }, [espacioId, reservations]);
+
+  const overlappingReservation = useMemo(() => {
+    if (!espacioId || selectedRangeMinutes.end <= selectedRangeMinutes.start) return null;
+    return activeReservationsForSpace.find((reservation) =>
+      rangesOverlap(selectedRangeMinutes.start, selectedRangeMinutes.end, reservationStartMinutes(reservation), reservationEndMinutes(reservation))
+    ) ?? null;
+  }, [activeReservationsForSpace, espacioId, selectedRangeMinutes]);
+
+  useEffect(() => {
+    if (uiError?.startsWith("Horario reservado") && !overlappingReservation) {
+      setUiError(null);
+    }
+  }, [overlappingReservation, uiError]);
+
+  const recommendedSlots = useMemo(() => {
+    if (!espacioId) return [];
+    const dayStart = 7 * 60;
+    const dayEnd = 23 * 60;
+    const latestStart = Math.max(dayStart, dayEnd - recommendedDuration);
+    const preferredStart = Math.min(Math.max(selectedRangeMinutes.start, dayStart), latestStart);
+    const availableStarts: number[] = [];
+
+    for (let start = dayStart; start + recommendedDuration <= dayEnd; start += 30) {
+      const end = start + recommendedDuration;
+      const busy = activeReservationsForSpace.some((reservation) =>
+        rangesOverlap(start, end, reservationStartMinutes(reservation), reservationEndMinutes(reservation))
+      );
+      if (busy) continue;
+      availableStarts.push(start);
+    }
+
+    return availableStarts
+      .sort((a, b) => Math.abs(a - preferredStart) - Math.abs(b - preferredStart) || a - b)
+      .slice(0, 8)
+      .map((start) => {
+        const end = start + recommendedDuration;
+        const inicio = minutesToHHMM(start);
+        const fin = minutesToHHMM(end);
+        return {
+          inicio,
+          fin,
+          label: `${inicio} - ${fin}`,
+          recommended: Math.abs(start - preferredStart) <= 60,
+        };
+      });
+  }, [activeReservationsForSpace, espacioId, recommendedDuration, selectedRangeMinutes.start]);
 
   const actividadValida = useMemo(() => {
     if (!espacioObj || !actividadId) return true;
@@ -261,6 +319,12 @@ export default function ReservaForm({
     const afterCredit = costo.total * Math.max(0, costo.minutos - creditMinutes) / costo.minutos;
     return afterCredit * (1 - discountPercent / 100);
   }, [costo.minutos, costo.total, creditMinutes, discountPercent]);
+  const receivedText = receivedAmount.trim();
+  const parsedReceivedValue = Number(receivedText);
+  const hasValidReceivedAmount = receivedText !== "" && Number.isFinite(parsedReceivedValue) && parsedReceivedValue >= 0;
+  const receivedValue = hasValidReceivedAmount ? parsedReceivedValue : 0;
+  const changeValue = Math.max(0, receivedValue - promoTotal);
+  const missingValue = Math.max(0, promoTotal - receivedValue);
   const automaticFreeMinutes = automaticHourPromotion ? decimalHoursToMinutes(automaticHourPromotion.horas_gratis) : 0;
   const automaticFreeEnd = automaticFreeMinutes ? addMinutes(finHHMM, automaticFreeMinutes) : null;
 
@@ -276,6 +340,8 @@ export default function ReservaForm({
     espacioEstadoReserva.disponible &&
     !!actividadId &&
     actividadValida &&
+    !overlappingReservation &&
+    hasValidReceivedAmount &&
     new Date(finISO).getTime() > new Date(inicioISO).getTime();
 
   const submit = async () => {
@@ -308,6 +374,18 @@ export default function ReservaForm({
 
     if (new Date(finISO).getTime() <= new Date(inicioISO).getTime()) {
       setUiError("La hora fin debe ser mayor a la hora inicio.");
+      return;
+    }
+
+    if (!hasValidReceivedAmount) {
+      setUiError("Ingresa el monto recibido para confirmar la reserva.");
+      return;
+    }
+
+    if (overlappingReservation) {
+      const busyRange = `${minutesToHHMM(reservationStartMinutes(overlappingReservation))} - ${minutesToHHMM(reservationEndMinutes(overlappingReservation))}`;
+      setUiError(`Horario reservado: ${inicioHHMM} - ${finHHMM} se solapa con ${busyRange}.`);
+      setRecommendedOpen(true);
       return;
     }
 
@@ -349,12 +427,16 @@ export default function ReservaForm({
     }
   };
 
+  const applyRecommendedSlot = (inicio: HHMM, fin: HHMM) => {
+    setInicioHHMM(inicio);
+    setFinHHMM(fin);
+    setUiError(null);
+    setRecommendedOpen(false);
+  };
+
   const clientesList = clientes.data?.results ?? [];
   const totalLabel = `Bs ${formatNumber(promoTotal)}`;
   const originalTotalLabel = `Bs ${formatNumber(costo.total)}`;
-  const receivedValue = Number(receivedAmount || 0);
-  const changeValue = Math.max(0, receivedValue - promoTotal);
-  const missingValue = Math.max(0, promoTotal - receivedValue);
   const durationLabel = `${costo.minutos} min`;
 
   return (
@@ -459,39 +541,160 @@ export default function ReservaForm({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+            gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))",
             gap: 12,
             alignItems: "start",
             border: "1px solid #263244",
-            borderRadius: 8,
+            borderRadius: 10,
             background: "#0f1420",
             padding: 12,
           }}
         >
-          <TimeRangePicker
-            inicioHHMM={inicioHHMM}
-            onInicioChange={onInicioChange}
-            finHHMM={finHHMM}
-            onFinChange={setFinHHMM}
-            minuteStep={5}
-            disabled={!espacioId || !actividadId || !espacioEstadoReserva.disponible}
-          />
+          <div style={{ display: "grid", gap: 10, minWidth: 0 }}>
+            <TimeRangePicker
+              inicioHHMM={inicioHHMM}
+              onInicioChange={onInicioChange}
+              finHHMM={finHHMM}
+              onFinChange={setFinHHMM}
+              minuteStep={5}
+              disabled={!espacioId || !actividadId || !espacioEstadoReserva.disponible}
+            />
 
-          <div style={{ display: "grid", gap: 10 }}>
+            <div
+              style={{
+                ...panelStyle,
+                display: "flex",
+                justifyContent: "space-between",
+                gap: 10,
+                alignItems: "center",
+                borderColor: overlappingReservation ? "#ff5252" : "#263244",
+                background: overlappingReservation ? "#3f1111" : "#0b1220",
+              }}
+            >
+              {overlappingReservation ? (
+                <div style={{ color: "#fecaca", fontSize: 12, fontWeight: 850, lineHeight: 1.4 }}>
+                  Horario reservado: {inicioHHMM} - {finHHMM} se solapa con{" "}
+                  {minutesToHHMM(reservationStartMinutes(overlappingReservation))} - {minutesToHHMM(reservationEndMinutes(overlappingReservation))}.
+                </div>
+              ) : espacioId && actividadId && espacioEstadoReserva.disponible ? (
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ color: "#f8fafc", fontSize: 13, fontWeight: 900 }}>Rango elegido</div>
+                  <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 2 }}>
+                    Busca alternativas cercanas a {inicioHHMM} - {finHHMM}.
+                  </div>
+                </div>
+              ) : (
+                <div style={{ color: "#94a3b8", fontSize: 12 }}>
+                  Selecciona espacio y actividad para consultar horarios.
+                </div>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRecommendedOpen(true)}
+                disabled={!espacioId || !actividadId || !espacioEstadoReserva.disponible}
+                style={{ whiteSpace: "nowrap" }}
+              >
+                Mostrar horarios
+              </Button>
+            </div>
+
+            <details
+              style={{
+                ...panelStyle,
+                borderColor: "rgba(255,210,74,0.22)",
+              }}
+            >
+              <summary style={{ cursor: "pointer", fontWeight: 950, color: "#f8fafc" }}>
+                Promociones y saldo
+                <span style={{ color: "#94a3b8", fontSize: 12, fontWeight: 800, marginLeft: 8 }}>
+                  {discountPromotions.length + promotionCredits.length || "sin opciones"}
+                </span>
+              </summary>
+
+              <div style={{ display: "grid", gap: 10, marginTop: 10 }}>
+                <div style={{ color: "#cbd5e1", fontSize: 12, lineHeight: 1.45 }}>
+                  Horas gratis e items de regalo se aplican solos si cumplen fecha, dia, espacio y prioridad.
+                </div>
+
+                {automaticHourPromotion && (
+                  <div style={{ border: "1px solid #2a3243", borderRadius: 8, padding: 10 }}>
+                    <strong>{automaticHourPromotion.nombre}</strong>
+                    <div style={{ color: "#cbd5e1", fontSize: 12, marginTop: 4 }}>
+                      Paga {automaticHourPromotion.horas_pagadas}h y recibe {automaticHourPromotion.horas_gratis}h gratis.
+                      {automaticFreeEnd ? ` Si esta libre, la reserva se extendera hasta ${automaticFreeEnd}. Si no, quedara saldo pendiente.` : ""}
+                    </div>
+                  </div>
+                )}
+
+                {automaticGiftPromotion && (
+                  <div style={{ border: "1px solid #2a3243", borderRadius: 8, padding: 10 }}>
+                    <strong>{automaticGiftPromotion.nombre}</strong>
+                    <div style={{ color: "#cbd5e1", fontSize: 12, marginTop: 4 }}>
+                      Regalo: {automaticGiftPromotion.cantidad_item_regalo} x {automaticGiftPromotion.item_regalo_nombre ?? "item"}.
+                    </div>
+                  </div>
+                )}
+
+                {!automaticHourPromotion && !automaticGiftPromotion && (
+                  <div style={{ color: "#94a3b8", fontSize: 12 }}>No hay promociones automaticas para este horario.</div>
+                )}
+
+                <Select
+                  label="Descuento (opcional)"
+                  options={[
+                    { label: "Sin descuento", value: "" },
+                    ...discountPromotions.map((promotion) => ({
+                      label: `${promotion.nombre} - ${promotion.descuento_porcentaje}%`,
+                      value: promotion.id,
+                    })),
+                  ]}
+                  value={selectedDiscountId}
+                  onChange={(event) => setSelectedDiscountId(event.target.value)}
+                  disabled={!discountPromotions.length}
+                />
+
+                <Select
+                  label="Canjear saldo pendiente"
+                  options={[
+                    { label: "No canjear saldo", value: "" },
+                    ...promotionCredits.map((credit) => ({
+                      label: `${credit.promocion_nombre ?? "Saldo"} - ${credit.minutos_disponibles} min disponibles`,
+                      value: credit.id,
+                    })),
+                  ]}
+                  value={selectedCreditId}
+                  onChange={(event) => setSelectedCreditId(event.target.value)}
+                  disabled={!promotionCredits.length}
+                />
+              </div>
+            </details>
+          </div>
+
+          <aside style={{ display: "grid", gap: 10, minWidth: 0 }}>
             <Input label="Notas (opcional)" value={notas} onChange={(e) => setNotas(e.target.value)} placeholder="Observaciones" />
-            <Input label="Monto recibido" type="number" min="0" step="0.01" value={receivedAmount} onChange={(e) => setReceivedAmount(e.target.value)} placeholder="Ej: 100" />
+            <Input
+              label="Monto recibido"
+              type="number"
+              min="0"
+              step="0.01"
+              value={receivedAmount}
+              onChange={(e) => setReceivedAmount(e.target.value)}
+              placeholder="Ej: 100"
+            />
 
             <div
               style={{
                 border: "1px solid rgba(255,210,74,0.28)",
-                borderRadius: 8,
-                padding: 10,
+                borderRadius: 10,
+                padding: 12,
                 background: "#0b1220",
               }}
             >
               <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
                 <span style={{ color: "#94a3b8", fontSize: 12, fontWeight: 850 }}>Total</span>
-                <strong style={{ color: "#ffd24a", fontSize: 22, lineHeight: 1 }}>{totalLabel}</strong>
+                <strong style={{ color: "#ffd24a", fontSize: 24, lineHeight: 1 }}>{totalLabel}</strong>
               </div>
 
               <div style={{ marginTop: 8, color: "#cbd5e1", fontSize: 12, lineHeight: 1.4 }}>
@@ -514,76 +717,7 @@ export default function ReservaForm({
                 </strong>
               </div>
             </div>
-
-            <div
-              style={{
-                border: "1px solid rgba(255,210,74,0.22)",
-                borderRadius: 8,
-                padding: 10,
-                background: "#0b1220",
-                display: "grid",
-                gap: 10,
-              }}
-            >
-              <div>
-                <div style={{ fontSize: 12, color: "#94a3b8", fontWeight: 850 }}>Promociones automaticas</div>
-                <div style={{ marginTop: 4, color: "#cbd5e1", fontSize: 12, lineHeight: 1.45 }}>
-                  Horas gratis e items de regalo se aplican solos si cumplen fecha, dia, espacio y prioridad. Solo el descuento se selecciona manualmente.
-                </div>
-              </div>
-
-              {automaticHourPromotion && (
-                <div style={{ border: "1px solid #2a3243", borderRadius: 8, padding: 10 }}>
-                  <strong>{automaticHourPromotion.nombre}</strong>
-                  <div style={{ color: "#cbd5e1", fontSize: 12, marginTop: 4 }}>
-                    Paga {automaticHourPromotion.horas_pagadas}h y recibe {automaticHourPromotion.horas_gratis}h gratis.
-                    {automaticFreeEnd ? ` Si esta libre, la reserva se extendera hasta ${automaticFreeEnd}. Si no, quedara saldo pendiente.` : ""}
-                  </div>
-                </div>
-              )}
-
-              {automaticGiftPromotion && (
-                <div style={{ border: "1px solid #2a3243", borderRadius: 8, padding: 10 }}>
-                  <strong>{automaticGiftPromotion.nombre}</strong>
-                  <div style={{ color: "#cbd5e1", fontSize: 12, marginTop: 4 }}>
-                    Regalo: {automaticGiftPromotion.cantidad_item_regalo} x {automaticGiftPromotion.item_regalo_nombre ?? "item"}.
-                  </div>
-                </div>
-              )}
-
-              {!automaticHourPromotion && !automaticGiftPromotion && (
-                <div style={{ color: "#94a3b8", fontSize: 12 }}>No hay promociones automaticas para este horario.</div>
-              )}
-
-              <Select
-                label="Descuento (opcional)"
-                options={[
-                  { label: "Sin descuento", value: "" },
-                  ...discountPromotions.map((promotion) => ({
-                    label: `${promotion.nombre} - ${promotion.descuento_porcentaje}%`,
-                    value: promotion.id,
-                  })),
-                ]}
-                value={selectedDiscountId}
-                onChange={(event) => setSelectedDiscountId(event.target.value)}
-                disabled={!discountPromotions.length}
-              />
-
-              <Select
-                label="Canjear saldo pendiente"
-                options={[
-                  { label: "No canjear saldo", value: "" },
-                  ...promotionCredits.map((credit) => ({
-                    label: `${credit.promocion_nombre ?? "Saldo"} - ${credit.minutos_disponibles} min disponibles`,
-                    value: credit.id,
-                  })),
-                ]}
-                value={selectedCreditId}
-                onChange={(event) => setSelectedCreditId(event.target.value)}
-                disabled={!promotionCredits.length}
-              />
-            </div>
-          </div>
+          </aside>
         </div>
       </div>
 
@@ -613,6 +747,122 @@ export default function ReservaForm({
           return created;
         }}
       />
+
+      {recommendedOpen && createPortal(
+        <div
+          role="presentation"
+          onClick={() => setRecommendedOpen(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1400,
+            display: "grid",
+            placeItems: "center",
+            padding: 14,
+            background: "rgba(5, 8, 15, 0.72)",
+            backdropFilter: "blur(3px)",
+          }}
+        >
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="recommended-slots-title"
+            onClick={(event) => event.stopPropagation()}
+            style={{
+              width: "min(560px, 100%)",
+              maxHeight: "80vh",
+              overflow: "auto",
+              border: "1px solid rgba(255,210,74,0.28)",
+              borderRadius: 10,
+              background: "#0f172a",
+              color: "#f8fafc",
+              boxShadow: "0 24px 80px rgba(0,0,0,0.45)",
+              padding: 14,
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 12 }}>
+              <div>
+                <h2 id="recommended-slots-title" style={{ margin: 0, fontSize: 18, fontWeight: 950 }}>
+                  Horarios disponibles
+                </h2>
+                <div style={{ color: "#94a3b8", fontSize: 13, marginTop: 4 }}>
+                  {espacioObj?.nombre ?? "Espacio"} / {day} / duracion {recommendedDuration} min
+                </div>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setRecommendedOpen(false)}>
+                Cerrar
+              </Button>
+            </div>
+
+            <div style={{ display: "grid", gap: 10 }}>
+              {activeReservationsForSpace.length > 0 && (
+                <div style={{ ...panelStyle, display: "grid", gap: 7, padding: 8 }}>
+                  <div style={{ color: "#94a3b8", fontSize: 12, fontWeight: 850 }}>Ocupados</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 6, maxHeight: 62, overflow: "auto" }}>
+                    {activeReservationsForSpace.map((reservation) => (
+                      <span
+                        key={reservation.id}
+                        style={{
+                          border: "1px solid rgba(255,82,82,0.38)",
+                          borderRadius: 999,
+                          color: "#fecaca",
+                          padding: "5px 8px",
+                          fontSize: 11,
+                          fontWeight: 850,
+                        }}
+                      >
+                        {minutesToHHMM(reservationStartMinutes(reservation))} - {minutesToHHMM(reservationEndMinutes(reservation))}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ ...panelStyle, display: "grid", gap: 9, padding: 10 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 950 }}>Disponibles</div>
+                    <div style={{ color: "#94a3b8", fontSize: 12, marginTop: 3 }}>
+                      Cerca de {inicioHHMM} - {finHHMM}.
+                    </div>
+                  </div>
+                  <strong style={{ color: "#ffd24a" }}>{recommendedSlots.length}</strong>
+                </div>
+
+                <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(124px, 1fr))", gap: 7 }}>
+                  {recommendedSlots.map((slot) => (
+                    <button
+                      key={slot.label}
+                      type="button"
+                      onClick={() => applyRecommendedSlot(slot.inicio, slot.fin)}
+                      style={{
+                        border: `1px solid ${slot.recommended ? "rgba(255,210,74,0.48)" : "var(--color-border)"}`,
+                        borderRadius: 8,
+                        background: slot.recommended ? "rgba(255,210,74,0.08)" : "#0b1220",
+                        color: "#f8fafc",
+                        padding: 9,
+                        textAlign: "left",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <strong>{slot.label}</strong>
+                      <div style={{ color: slot.recommended ? "#ffd24a" : "#94a3b8", fontSize: 11, marginTop: 4, fontWeight: 850 }}>
+                        {slot.recommended ? "Recomendado" : "Disponible"}
+                      </div>
+                    </button>
+                  ))}
+                  {recommendedSlots.length === 0 && (
+                    <div style={{ color: "#94a3b8", fontSize: 13 }}>
+                      No se encontraron horarios libres para esa duracion en este dia.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }

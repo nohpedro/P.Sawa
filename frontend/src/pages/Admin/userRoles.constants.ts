@@ -21,13 +21,13 @@ export const MODULE_SECTIONS: Array<{
   },
   {
     title: "Clientes",
-    description: "Consulta y administracion de clientes.",
-    modules: ["customers"],
+    description: "Consulta de clientes y permisos de nota de venta.",
+    modules: ["customers", "sales_note_view", "sales_note_edit"],
   },
   {
     title: "Inventario",
     description: "Items, lotes y promociones del inventario.",
-    modules: ["inventory", "inventory_batches", "inventory_sale_margin", "inventory_promotions"],
+    modules: ["inventory", "inventory_items_create", "inventory_batches", "inventory_sale_margin", "inventory_promotions"],
   },
   {
     title: "Metas empresariales",

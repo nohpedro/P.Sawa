@@ -9,6 +9,7 @@ import MonthCalendar from "../../components/reservas/MonthCalendar";
 import FullScreenModal from "../../components/reservas/FullScreenModal";
 import ReservaForm from "../../components/reservas/ReservaForm";
 import ReservationConfirmation from "../../components/reservas/ReservationConfirmation";
+import MoveReservationModal from "../../components/reservas/MoveReservationModal";
 
 import { useReservas } from "../../hooks/useReservas";
 import { formatHHMM, toYYYYMMDD } from "../../utils/date";
@@ -31,7 +32,8 @@ export default function ReservationsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
-  const [calendarOpen, setCalendarOpen] = useState(true);
+  const [movingReservation, setMovingReservation] = useState<Reserva | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const [dayReservationsOpen, setDayReservationsOpen] = useState(true);
   const [hourQuery, setHourQuery] = useState("");
   const [toast, setToast] = useState<ToastState>({ open: false, message: "", type: "info" });
@@ -93,6 +95,13 @@ export default function ReservationsPage() {
     await reservas.create(payload);
     setModalOpen(false);
     setConfirmationOpen(true);
+    await loadDay(selectedDay);
+  };
+
+  const onMoveReservation = async (id: string, payload: Pick<ReservaWriteDTO, "inicio" | "fin">) => {
+    await reservas.patch(id, payload);
+    setMovingReservation(null);
+    setToast({ open: true, message: "Reserva movida correctamente.", type: "success" });
     await loadDay(selectedDay);
   };
 
@@ -222,6 +231,7 @@ export default function ReservationsPage() {
               <div className="fids-cell">Fin</div>
               <div className="fids-cell">Promos</div>
               <div className="fids-cell">Estado</div>
+              <div className="fids-cell">Accion</div>
             </div>
 
             {filteredRows.map((r) => (
@@ -235,6 +245,16 @@ export default function ReservationsPage() {
                 <div className="fids-cell">{formatHHMM(r.fin)}</div>
                 <div className="fids-cell">{promotionSummary(r)}</div>
                 <div className="fids-cell">{r.estado_reserva}</div>
+                <div className="fids-cell">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setMovingReservation(r)}
+                    disabled={["CANCELADA", "FINALIZADA"].includes(r.estado_reserva)}
+                  >
+                    Mover
+                  </Button>
+                </div>
               </div>
             ))}
 
@@ -256,8 +276,18 @@ export default function ReservationsPage() {
         subtitle="Selecciona cliente, espacio, actividad y horario."
         onClose={() => setModalOpen(false)}
       >
-        <ReservaForm day={selectedDay} loading={reservas.loading} onSubmit={onSubmit} />
+        <ReservaForm day={selectedDay} reservations={rows} loading={reservas.loading} onSubmit={onSubmit} />
       </FullScreenModal>
+
+      <MoveReservationModal
+        open={!!movingReservation}
+        reservation={movingReservation}
+        day={selectedDay}
+        dayReservations={rows}
+        loading={reservas.loading}
+        onClose={() => setMovingReservation(null)}
+        onMove={onMoveReservation}
+      />
 
       <Toast
         open={toast.open}

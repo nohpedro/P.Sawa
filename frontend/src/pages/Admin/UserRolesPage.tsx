@@ -19,6 +19,39 @@ const panelStyle: CSSProperties = {
   padding: 14,
 };
 
+const selectStyle: CSSProperties = {
+  width: "100%",
+  padding: "10px 12px",
+  borderRadius: 6,
+  border: "1px solid #2a3243",
+  background: "#0f1420",
+  color: "#eaeaea",
+  outline: "none",
+};
+
+const roleOptions = [
+  { value: "operador", label: "Operador" },
+  { value: "admin", label: "Administrador" },
+  { value: "cliente", label: "Cliente" },
+  { value: "superuser", label: "Superuser" },
+];
+
+function roleLabel(role: string): string {
+  return roleOptions.find((option) => option.value === role)?.label ?? role;
+}
+
+function statusColor(user: Pick<ManagedUser, "is_active" | "is_superuser">): string {
+  if (user.is_superuser) return "#ffd24a";
+  return user.is_active ? "#8ee59f" : "#ffb4b4";
+}
+
+function accessPreview(modules: string[], limit = 5): string {
+  if (modules.length === 0) return "Sin permisos asignados";
+  const visible = modules.slice(0, limit).map(moduleLabel);
+  const pending = modules.length - visible.length;
+  return pending > 0 ? `${visible.join(", ")} +${pending} mas` : visible.join(", ");
+}
+
 function normalizeUser(user: ManagedUser): ManagedUser {
   return {
     ...user,
@@ -211,10 +244,19 @@ export default function UserRolesPage() {
           </div>
         }
       >
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 13 }}>
-          <span style={panelStyle}>Usuarios: {totalUsers}</span>
-          <span style={panelStyle}>Pagina: {page}</span>
-          <span style={panelStyle}>Seleccionado: {selected?.username ?? "Ninguno"}</span>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 10, fontSize: 13 }}>
+          <div style={panelStyle}>
+            <strong>{totalUsers}</strong>
+            <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Usuarios registrados</div>
+          </div>
+          <div style={panelStyle}>
+            <strong>{users.filter((user) => user.is_active).length}</strong>
+            <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Usuarios activos</div>
+          </div>
+          <div style={panelStyle}>
+            <strong>{selected?.username ?? "Ninguno"}</strong>
+            <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Seleccionado</div>
+          </div>
         </div>
       </Card>
 
@@ -237,6 +279,7 @@ export default function UserRolesPage() {
                 <button
                   key={user.id}
                   type="button"
+                  title={accessPreview(user.modules ?? [])}
                   onClick={() => openEdit(user)}
                   onDoubleClick={() => openEdit(user)}
                   style={{
@@ -249,16 +292,64 @@ export default function UserRolesPage() {
                     cursor: "pointer",
                   }}
                 >
-                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10 }}>
-                    <strong>{user.username}</strong>
-                    <span style={{ color: user.is_active ? "#8ee59f" : "#ffb4b4", fontSize: 12, fontWeight: 900 }}>
-                      {user.is_superuser ? "Superuser" : user.role}
+                  <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", gap: 12, alignItems: "start" }}>
+                    <div style={{ minWidth: 0 }}>
+                      <strong style={{ fontSize: 15 }}>{user.username}</strong>
+                      <div style={{ marginTop: 4, color: "var(--color-text-muted)", fontSize: 12 }}>
+                        {user.email || "Sin email"}
+                      </div>
+                    </div>
+                    <div style={{ display: "grid", justifyItems: "end", gap: 6 }}>
+                      <span
+                        style={{
+                          border: `1px solid ${statusColor(user)}`,
+                          borderRadius: 999,
+                          color: statusColor(user),
+                          padding: "5px 8px",
+                          fontSize: 11,
+                          fontWeight: 950,
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {user.is_superuser ? "Superuser" : roleLabel(user.role)}
+                      </span>
+                      <span style={{ color: user.is_active ? "#8ee59f" : "#ffb4b4", fontSize: 11, fontWeight: 900 }}>
+                        {user.is_active ? "Activo" : "Inactivo"}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>
+                    {(user.modules ?? []).slice(0, 6).map((module) => (
+                      <span
+                        key={module}
+                        style={{
+                          border: "1px solid var(--color-border)",
+                          borderRadius: 999,
+                          background: "rgba(255,255,255,0.03)",
+                          color: "var(--color-text-muted)",
+                          padding: "5px 8px",
+                          fontSize: 11,
+                          fontWeight: 800,
+                        }}
+                      >
+                        {moduleLabel(module)}
+                      </span>
+                    ))}
+                    {(user.modules ?? []).length > 6 && (
+                      <span style={{ color: "#ffd24a", fontSize: 11, fontWeight: 900, padding: "5px 0" }}>
+                        +{(user.modules ?? []).length - 6} permisos
+                      </span>
+                    )}
+                    {(user.modules ?? []).length === 0 && (
+                      <span style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Sin modulos</span>
+                    )}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center", marginTop: 12 }}>
+                    <span style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
+                      {(user.modules ?? []).length} accesos
                     </span>
-                  </div>
-                  <div style={{ marginTop: 6, color: "var(--color-text-muted)", fontSize: 12 }}>
-                    {(user.modules ?? []).map(moduleLabel).join(", ") || "Sin modulos"}
-                  </div>
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
                     <Button
                       variant="outline"
                       size="sm"
@@ -316,8 +407,8 @@ export default function UserRolesPage() {
             aria-labelledby="user-create-title"
             onClick={(event) => event.stopPropagation()}
             style={{
-              width: "min(860px, 100%)",
-              maxHeight: "88vh",
+              width: "min(1280px, calc(100vw - 32px))",
+              maxHeight: "90vh",
               overflow: "auto",
               border: "1px solid rgba(255,210,74,0.28)",
               borderRadius: 10,
@@ -341,12 +432,25 @@ export default function UserRolesPage() {
               </Button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 330px) minmax(360px, 1fr)", gap: 18, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 380px) minmax(0, 1fr)", gap: 20, alignItems: "start" }}>
               <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ ...panelStyle, display: "grid", gap: 4 }}>
+                  <div style={{ color: "#ffd24a", fontSize: 12, fontWeight: 950 }}>Datos de acceso</div>
+                  <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+                    La contrasena puede dejarse vacia para usar la clave temporal por defecto.
+                  </div>
+                </div>
                 <Input label="Usuario" value={form.username} onChange={(e) => setForm((s) => ({ ...s, username: e.target.value }))} />
                 <Input label="Email" value={form.email ?? ""} onChange={(e) => setForm((s) => ({ ...s, email: e.target.value }))} />
                 <Input label="Contrasena" value={form.password ?? ""} onChange={(e) => setForm((s) => ({ ...s, password: e.target.value }))} placeholder="Default: 123456" />
-                <Input label="Rol visible" value={form.role} onChange={(e) => setForm((s) => ({ ...s, role: e.target.value }))} />
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 12, opacity: 0.85, letterSpacing: 0.6 }}>Rol visible</span>
+                  <select value={form.role} onChange={(e) => setForm((s) => ({ ...s, role: e.target.value }))} style={selectStyle}>
+                    {roleOptions.filter((option) => option.value !== "superuser").map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
 
                 <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 800 }}>
                   <input
@@ -362,11 +466,22 @@ export default function UserRolesPage() {
                 </Button>
               </div>
 
-              <ModuleAccessSections
-                value={form.modules ?? []}
-                includeUsers={false}
-                onChange={(modules) => setForm((s) => ({ ...s, modules }))}
-              />
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ ...panelStyle, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 950 }}>Permisos iniciales</div>
+                    <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 3 }}>
+                      Activa solo las pantallas y acciones necesarias para este usuario.
+                    </div>
+                  </div>
+                  <strong style={{ color: "#ffd24a", whiteSpace: "nowrap" }}>{(form.modules ?? []).length} accesos</strong>
+                </div>
+                <ModuleAccessSections
+                  value={form.modules ?? []}
+                  includeUsers={false}
+                  onChange={(modules) => setForm((s) => ({ ...s, modules }))}
+                />
+              </div>
             </div>
           </section>
         </div>,
@@ -394,8 +509,8 @@ export default function UserRolesPage() {
             aria-labelledby="user-permissions-title"
             onClick={(event) => event.stopPropagation()}
             style={{
-              width: "min(980px, 100%)",
-              maxHeight: "88vh",
+              width: "min(1320px, calc(100vw - 32px))",
+              maxHeight: "90vh",
               overflow: "auto",
               border: "1px solid rgba(255,210,74,0.28)",
               borderRadius: 10,
@@ -419,11 +534,47 @@ export default function UserRolesPage() {
               </Button>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 330px) minmax(360px, 1fr)", gap: 18, alignItems: "start" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(300px, 380px) minmax(0, 1fr)", gap: 20, alignItems: "start" }}>
               <div style={{ display: "grid", gap: 12 }}>
+                <div style={{ ...panelStyle, display: "grid", gap: 6 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
+                    <div>
+                      <div style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>Cuenta</div>
+                      <div style={{ fontSize: 18, fontWeight: 950 }}>{selected.username}</div>
+                    </div>
+                    <span
+                      style={{
+                        border: `1px solid ${statusColor(selected)}`,
+                        borderRadius: 999,
+                        color: statusColor(selected),
+                        padding: "6px 9px",
+                        fontSize: 11,
+                        fontWeight: 950,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {selected.is_active ? "Activo" : "Inactivo"}
+                    </span>
+                  </div>
+                  <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
+                    {selected.is_superuser ? "Usuario con todos los accesos del sistema." : `${(selected.modules ?? []).length} permisos asignados.`}
+                  </div>
+                </div>
                 <Input label="Usuario" value={selected.username} onChange={(e) => setSelected((s) => (s ? { ...s, username: e.target.value } : s))} disabled={selected.is_superuser} />
                 <Input label="Email" value={selected.email ?? ""} onChange={(e) => setSelected((s) => (s ? { ...s, email: e.target.value } : s))} />
-                <Input label="Rol visible" value={selected.role} onChange={(e) => setSelected((s) => (s ? { ...s, role: e.target.value } : s))} disabled={selected.is_superuser} />
+                <label style={{ display: "grid", gap: 6 }}>
+                  <span style={{ fontSize: 12, opacity: 0.85, letterSpacing: 0.6 }}>Rol visible</span>
+                  <select
+                    value={selected.role}
+                    onChange={(e) => setSelected((s) => (s ? { ...s, role: e.target.value } : s))}
+                    disabled={selected.is_superuser}
+                    style={{ ...selectStyle, opacity: selected.is_superuser ? 0.65 : 1 }}
+                  >
+                    {roleOptions.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
 
                 <div style={{ ...panelStyle, display: "grid", gap: 10 }}>
                   <label style={{ display: "flex", gap: 10, alignItems: "center", fontSize: 13, fontWeight: 800 }}>
@@ -491,11 +642,24 @@ export default function UserRolesPage() {
                 </Button>
               </div>
 
-              <ModuleAccessSections
-                value={selected.is_superuser ? MODULES.map((module) => module.key) : selected.modules ?? []}
-                disabled={selected.is_superuser}
-                onChange={(modules) => setSelected((s) => (s ? { ...s, modules } : s))}
-              />
+              <div style={{ display: "grid", gap: 10 }}>
+                <div style={{ ...panelStyle, display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center" }}>
+                  <div>
+                    <div style={{ fontWeight: 950 }}>Asignacion de permisos</div>
+                    <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 3 }}>
+                      Los cambios se aplican al guardar permisos.
+                    </div>
+                  </div>
+                  <strong style={{ color: "#ffd24a", whiteSpace: "nowrap" }}>
+                    {(selected.is_superuser ? MODULES : selected.modules ?? []).length} accesos
+                  </strong>
+                </div>
+                <ModuleAccessSections
+                  value={selected.is_superuser ? MODULES.map((module) => module.key) : selected.modules ?? []}
+                  disabled={selected.is_superuser}
+                  onChange={(modules) => setSelected((s) => (s ? { ...s, modules } : s))}
+                />
+              </div>
             </div>
           </section>
         </div>,

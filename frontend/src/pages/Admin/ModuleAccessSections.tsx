@@ -9,6 +9,13 @@ const panelStyle: CSSProperties = {
   padding: 14,
 };
 
+const progressTrackStyle: CSSProperties = {
+  height: 6,
+  borderRadius: 999,
+  background: "rgba(255,255,255,0.08)",
+  overflow: "hidden",
+};
+
 function toggleModule(list: ModuleKey[], module: ModuleKey): ModuleKey[] {
   return list.includes(module) ? list.filter((item) => item !== module) : [...list, module];
 }
@@ -40,12 +47,36 @@ export default function ModuleAccessSections({
 
         const selectedCount = sectionModules.filter((module) => value.includes(module)).length;
         const allChecked = selectedCount === sectionModules.length;
+        const progress = sectionModules.length ? Math.round((selectedCount / sectionModules.length) * 100) : 0;
 
         return (
-          <div key={section.title} style={{ ...panelStyle, display: "grid", gap: 10 }}>
+          <div
+            key={section.title}
+            style={{
+              ...panelStyle,
+              display: "grid",
+              gap: 12,
+              borderColor: selectedCount > 0 ? "rgba(255,210,74,0.28)" : "var(--color-border)",
+              background: selectedCount > 0 ? "rgba(255,210,74,0.04)" : "rgba(255,255,255,0.02)",
+            }}
+          >
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start" }}>
               <div>
-                <div style={{ fontWeight: 950 }}>{section.title}</div>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <div style={{ fontWeight: 950 }}>{section.title}</div>
+                  <span
+                    style={{
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      borderRadius: 999,
+                      color: selectedCount > 0 ? "#ffd24a" : "var(--color-text-muted)",
+                      padding: "4px 7px",
+                      fontSize: 10,
+                      fontWeight: 900,
+                    }}
+                  >
+                    {selectedCount === 0 ? "Sin acceso" : allChecked ? "Completo" : "Parcial"}
+                  </span>
+                </div>
                 <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 3 }}>
                   {section.description}
                 </div>
@@ -62,7 +93,19 @@ export default function ModuleAccessSections({
               </label>
             </div>
 
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))", gap: 8 }}>
+            <div style={progressTrackStyle}>
+              <div
+                style={{
+                  width: `${progress}%`,
+                  height: "100%",
+                  borderRadius: 999,
+                  background: "linear-gradient(90deg, #ffd24a, #8ee59f)",
+                  transition: "width 180ms ease",
+                }}
+              />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))", gap: 10 }}>
               {sectionModules.map((module) => {
                 const checked = value.includes(module);
 
@@ -76,9 +119,12 @@ export default function ModuleAccessSections({
                       border: `1px solid ${checked ? "rgba(255,210,74,0.55)" : "var(--color-border)"}`,
                       borderRadius: 8,
                       background: checked ? "rgba(255,210,74,0.08)" : "rgba(255,255,255,0.02)",
-                      padding: "9px 10px",
+                      padding: "10px 12px",
                       fontSize: 13,
                       fontWeight: 800,
+                      minHeight: 42,
+                      cursor: disabled ? "not-allowed" : "pointer",
+                      opacity: disabled ? 0.7 : 1,
                     }}
                   >
                     <input
@@ -114,8 +160,9 @@ export default function ModuleAccessSections({
               </div>
             )}
 
-            <div style={{ color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
-              {selectedCount} de {sectionModules.length} accesos seleccionados
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, color: "var(--color-text-muted)", fontSize: 12, fontWeight: 800 }}>
+              <span>{selectedCount} de {sectionModules.length} accesos seleccionados</span>
+              <span>{progress}%</span>
             </div>
           </div>
         );

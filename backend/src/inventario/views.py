@@ -2,6 +2,7 @@ from django.db.models import Count, F
 from rest_framework import filters, viewsets
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
+from rest_framework.exceptions import PermissionDenied
 
 from audit.models import AuditLog
 from audit.utils import AuditLogMixin
@@ -9,7 +10,7 @@ from auth_vap.authentication import AccessTokenAuthentication
 from common_vap.permissions import HasModuleAccess, IsAdminOrReadOnly
 
 from .models import InventoryItem, InventoryProductSale, InventoryPromotion, InventoryPurchaseBatch
-from .permissions import can_edit_sale_margin, default_sale_margin_if_unauthorized
+from .permissions import can_create_inventory_items, can_edit_sale_margin, default_sale_margin_if_unauthorized
 from .serializers import InventoryItemSerializer, InventoryProductSaleSerializer, InventoryPromotionSerializer, InventoryPurchaseBatchSerializer
 
 
@@ -41,6 +42,11 @@ class InventoryItemViewSet(AuditLogMixin, viewsets.ModelViewSet):
 
     def get_audit_summary(self, instance):
         return f"item de inventario {instance.nombre}"
+
+    def perform_create(self, serializer):
+        if not can_create_inventory_items(self.request.user):
+            raise PermissionDenied("No tienes permiso para crear items de inventario.")
+        super().perform_create(serializer)
 
     def get_audit_field_labels(self):
         return {

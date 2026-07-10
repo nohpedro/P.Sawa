@@ -7,9 +7,12 @@ import Button from "../../components/ui/Button";
 import Loader from "../../components/ui/Loader";
 import Toast from "../../components/ui/Toast";
 
+import { useAuth } from "../../hooks/useAuth";
 import { useClientes } from "../../hooks/useClientes";
 import type { Cliente, ClienteWriteDTO } from "../../models/cliente";
+import { hasModule } from "../../models/modules";
 import { getErrorMessage } from "../../utils/error";
+import SalesNoteModal from "./components/SalesNoteModal";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
 type ModalMode = "create" | "edit" | null;
@@ -91,11 +94,15 @@ function customerSavedMessage(action: "created" | "updated", payload: ClienteWri
 }
 
 export default function CustomersPage() {
+  const { user } = useAuth();
   const clientes = useClientes();
+  const canViewSalesNote = hasModule(user, "sales_note_view") || hasModule(user, "sales_note_edit");
+  const canEditSalesNote = hasModule(user, "sales_note_edit");
 
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<Cliente | null>(null);
+  const [salesNoteTarget, setSalesNoteTarget] = useState<Cliente | null>(null);
   const [draft, setDraft] = useState<ClienteWriteDTO>(emptyForm);
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [deleteTarget, setDeleteTarget] = useState<Cliente | null>(null);
@@ -293,7 +300,19 @@ export default function CustomersPage() {
                     </div>
                   )}
 
-                  <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 10 }}>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 }}>
+                    {canViewSalesNote && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSalesNoteTarget(cliente);
+                        }}
+                      >
+                        Nota de venta
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
@@ -452,6 +471,12 @@ export default function CustomersPage() {
               </div>
             </section>
           </div>,
+          document.body
+        )}
+
+      {salesNoteTarget &&
+        createPortal(
+          <SalesNoteModal cliente={salesNoteTarget} canEdit={canEditSalesNote} onClose={() => setSalesNoteTarget(null)} />,
           document.body
         )}
 

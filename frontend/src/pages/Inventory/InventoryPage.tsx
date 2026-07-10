@@ -13,7 +13,7 @@ import BatchModal, { type BatchDraft } from "./BatchModal";
 import DeleteItemModal from "./DeleteItemModal";
 import InventoryItemModal from "./InventoryItemModal";
 import { ITEM_TYPES } from "./constants";
-import { DEFAULT_SALE_MARGIN_PERCENT, canEditSaleMargin, canRegisterBatches, saleMarginOrDefault } from "./permissions";
+import { DEFAULT_SALE_MARGIN_PERCENT, canCreateInventoryItems, canEditSaleMargin, canRegisterBatches, saleMarginOrDefault } from "./permissions";
 import { money, panelStyle, selectStyle } from "./shared";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
@@ -65,6 +65,7 @@ function asPayload(item: InventoryItemWriteDTO, canEditMargin: boolean): Invento
 
 export default function InventoryPage() {
   const { user } = useAuth();
+  const userCanCreateItems = canCreateInventoryItems(user);
   const userCanEditSaleMargin = canEditSaleMargin(user);
   const userCanRegisterBatches = canRegisterBatches(user);
   const [items, setItems] = useState<InventoryItem[]>([]);
@@ -134,6 +135,7 @@ export default function InventoryPage() {
   const marginPreview = salePricePreview - unitCostPreview;
 
   const openCreate = () => {
+    if (!userCanCreateItems) return;
     setItemDraft({ ...emptyItem, margen_venta_porcentaje: DEFAULT_SALE_MARGIN_PERCENT });
     setSelected(null);
     setModalMode("create");
@@ -172,6 +174,10 @@ export default function InventoryPage() {
   };
 
   const onCreate = async () => {
+    if (!userCanCreateItems) {
+      setToast({ open: true, message: "No tienes permiso para crear items.", type: "error" });
+      return;
+    }
     if (!itemDraft.nombre.trim()) return;
     setLoading(true);
     try {
@@ -255,7 +261,7 @@ export default function InventoryPage() {
         subtitle="Controla consumibles, equipamiento con mantenimiento y articulos variados."
         rightSlot={
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Button onClick={openCreate}>+ Nuevo item</Button>
+            {userCanCreateItems && <Button onClick={openCreate}>+ Nuevo item</Button>}
             <Button variant="outline" onClick={() => void load()} disabled={loading}>
               Refrescar
             </Button>

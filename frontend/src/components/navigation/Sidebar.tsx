@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { NavLink } from "react-router-dom";
-import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
+import { useEffect, useMemo, useState } from "react";
+import { NavLink, useLocation } from "react-router-dom";
+import { FiChevronDown, FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import type { SidebarSection } from "./sidebar.types";
 
 export default function Sidebar({
@@ -11,6 +11,32 @@ export default function Sidebar({
   footer?: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
+  const location = useLocation();
+  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+
+  const visibleSectionTitles = useMemo(() => sections.map((section) => section.title), [sections]);
+
+  const isItemActive = (to: string, end?: boolean) => {
+    if (end) return location.pathname === to;
+    return location.pathname === to || location.pathname.startsWith(`${to}/`);
+  };
+
+  useEffect(() => {
+    setExpandedSections((current) => {
+      const next: Record<string, boolean> = {};
+      sections.forEach((section) => {
+        const hasActiveItem = section.items.some((item) => isItemActive(item.to, item.end));
+        next[section.title] = current[section.title] ?? true;
+        if (hasActiveItem) next[section.title] = true;
+      });
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname, visibleSectionTitles.join("|")]);
+
+  const toggleSection = (title: string) => {
+    setExpandedSections((current) => ({ ...current, [title]: !(current[title] ?? true) }));
+  };
 
   return (
     <>
@@ -71,59 +97,86 @@ export default function Sidebar({
         </div>
 
         <div className="app-sidebar__content" style={{ flex: 1, padding: collapsed ? "8px 6px" : "8px 12px", position: "relative", zIndex: 1 }}>
-          {sections.map((section) => (
-            <div key={section.title} className="app-sidebar__section" style={{ marginBottom: 16 }}>
-              <div className="app-sidebar__section-title">
-                {section.title}
-              </div>
+          {sections.map((section) => {
+            const sectionExpanded = collapsed || (expandedSections[section.title] ?? true);
+            const sectionActive = section.items.some((item) => isItemActive(item.to, item.end));
 
-              <div style={{ display: "grid", gap: 7 }}>
-                {section.items.map((it) => {
-                  const Icon = it.icon;
+            return (
+              <div key={section.title} className="app-sidebar__section" style={{ marginBottom: sectionExpanded ? 16 : 8 }}>
+                <button
+                  type="button"
+                  className={`app-sidebar__section-toggle${sectionActive ? " app-sidebar__section-toggle--active" : ""}`}
+                  onClick={() => toggleSection(section.title)}
+                  disabled={collapsed}
+                  aria-expanded={sectionExpanded}
+                  title={collapsed ? section.title : undefined}
+                >
+                  <span className="app-sidebar__section-title">
+                    {section.title}
+                  </span>
+                  <span className="app-sidebar__section-count">{section.items.length}</span>
+                  <FiChevronDown className="app-sidebar__section-chevron" size={15} />
+                </button>
 
-                  return (
-                    <NavLink
-                      key={it.to}
-                      to={it.to}
-                      end={it.end}
-                      title={collapsed ? it.label : undefined}
-                      className={({ isActive }) =>
-                        `app-sidebar__link${isActive ? " app-sidebar__link--active" : ""}`
-                      }
-                      style={({ isActive }) => ({
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: collapsed ? "center" : "flex-start",
-                        padding: collapsed ? "10px" : "10px 12px",
-                        borderRadius: 8,
-                        border: isActive
-                          ? "1px solid rgba(255, 210, 74, 0.5)"
-                          : "1px solid rgba(255, 255, 255, 0.08)",
-                        background: isActive
-                          ? "linear-gradient(90deg, rgba(255, 210, 74, 0.18), rgba(255, 255, 255, 0.055))"
-                          : "rgba(15, 20, 32, 0.22)",
-                        color: "var(--color-text)",
-                        textDecoration: "none",
-                        fontWeight: isActive ? 850 : 650,
-                        letterSpacing: 0,
-                        gap: 10,
-                        minHeight: 42,
-                        maxWidth: "100%",
-                        position: "relative",
-                        overflow: "hidden",
-                        transition:
-                          "transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, padding 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
-                      })}
-                    >
-                      <span className="app-sidebar__active-ball" aria-hidden="true" />
-                      <Icon className="app-sidebar__icon" size={18} />
-                      <span className="app-sidebar__label">{it.label}</span>
-                    </NavLink>
-                  );
-                })}
+                <div
+                  className="app-sidebar__section-items"
+                  style={{
+                    display: "grid",
+                    gap: 7,
+                    gridTemplateRows: sectionExpanded ? "1fr" : "0fr",
+                    opacity: sectionExpanded ? 1 : 0,
+                    pointerEvents: sectionExpanded ? "auto" : "none",
+                  }}
+                >
+                  <div style={{ display: "grid", gap: 7, minHeight: 0, overflow: "hidden" }}>
+                    {section.items.map((it) => {
+                      const Icon = it.icon;
+
+                      return (
+                        <NavLink
+                          key={it.to}
+                          to={it.to}
+                          end={it.end}
+                          title={collapsed ? it.label : undefined}
+                          className={({ isActive }) =>
+                            `app-sidebar__link${isActive ? " app-sidebar__link--active" : ""}`
+                          }
+                          style={({ isActive }) => ({
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: collapsed ? "center" : "flex-start",
+                            padding: collapsed ? "10px" : "10px 12px",
+                            borderRadius: 8,
+                            border: isActive
+                              ? "1px solid rgba(255, 210, 74, 0.5)"
+                              : "1px solid rgba(255, 255, 255, 0.08)",
+                            background: isActive
+                              ? "linear-gradient(90deg, rgba(255, 210, 74, 0.18), rgba(255, 255, 255, 0.055))"
+                              : "rgba(15, 20, 32, 0.22)",
+                            color: "var(--color-text)",
+                            textDecoration: "none",
+                            fontWeight: isActive ? 850 : 650,
+                            letterSpacing: 0,
+                            gap: 10,
+                            minHeight: 42,
+                            maxWidth: "100%",
+                            position: "relative",
+                            overflow: "hidden",
+                            transition:
+                              "transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease, padding 0.34s cubic-bezier(0.22, 1, 0.36, 1)",
+                          })}
+                        >
+                          <span className="app-sidebar__active-ball" aria-hidden="true" />
+                          <Icon className="app-sidebar__icon" size={18} />
+                          <span className="app-sidebar__label">{it.label}</span>
+                        </NavLink>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {footer && (
@@ -221,9 +274,42 @@ export default function Sidebar({
           transition: margin 0.34s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
+        .app-sidebar__section-toggle {
+          width: 100%;
+          margin: 0 0 7px;
+          padding: 6px 6px 6px 4px;
+          border: 1px solid transparent;
+          border-radius: 8px;
+          background: transparent;
+          color: rgba(234, 234, 234, 0.72);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          cursor: pointer;
+          text-align: left;
+          transition:
+            background 180ms ease,
+            border-color 180ms ease,
+            color 180ms ease,
+            margin-bottom 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .app-sidebar__section-toggle:hover {
+          background: rgba(255, 210, 74, 0.06);
+          border-color: rgba(255, 210, 74, 0.14);
+          color: var(--color-text);
+        }
+
+        .app-sidebar__section-toggle--active {
+          color: #ffd24a;
+        }
+
+        .app-sidebar__section-toggle:disabled {
+          cursor: default;
+        }
+
         .app-sidebar__section-title {
-          margin-bottom: 7px;
-          padding-left: 4px;
+          flex: 1;
           color: rgba(234, 234, 234, 0.72);
           font-size: 11px;
           font-weight: 850;
@@ -242,12 +328,60 @@ export default function Sidebar({
             margin-bottom 0.34s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
+        .app-sidebar__section-count {
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          border-radius: 999px;
+          color: rgba(234, 234, 234, 0.66);
+          font-size: 10px;
+          font-weight: 850;
+          line-height: 1;
+          padding: 4px 6px;
+          transition: opacity 180ms ease, max-width 0.34s cubic-bezier(0.22, 1, 0.36, 1), padding 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .app-sidebar__section-chevron {
+          flex: 0 0 auto;
+          color: rgba(234, 234, 234, 0.66);
+          transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease, color 180ms ease;
+        }
+
+        .app-sidebar__section-toggle[aria-expanded="false"] .app-sidebar__section-chevron {
+          transform: rotate(-90deg);
+        }
+
+        .app-sidebar__section-toggle:hover .app-sidebar__section-chevron,
+        .app-sidebar__section-toggle--active .app-sidebar__section-chevron {
+          color: #ffd24a;
+        }
+
+        .app-sidebar__section-items {
+          transition: grid-template-rows 0.28s cubic-bezier(0.22, 1, 0.36, 1), opacity 180ms ease;
+        }
+
         .app-sidebar--collapsed .app-sidebar__section-title {
           max-width: 0;
           max-height: 0;
           margin-bottom: 0;
           opacity: 0;
           transform: translateX(-10px);
+        }
+
+        .app-sidebar--collapsed .app-sidebar__section-toggle {
+          height: 0;
+          max-height: 0;
+          margin: 0;
+          padding: 0;
+          border-width: 0;
+          overflow: hidden;
+          pointer-events: none;
+        }
+
+        .app-sidebar--collapsed .app-sidebar__section-count,
+        .app-sidebar--collapsed .app-sidebar__section-chevron {
+          max-width: 0;
+          padding: 0;
+          opacity: 0;
+          overflow: hidden;
         }
 
         .app-sidebar__link {
