@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
 import GraphZoomToolbar from "../../../components/visualGraph/GraphZoomToolbar";
+import type { InventoryPurchaseBatch } from "../../../models/inventory";
 import type { BusinessFixedExpense, BusinessGoal, BusinessGoalConnection, BusinessGoalNode } from "../../../models/businessGoals";
 import { formatBolivianos } from "../../../utils/currency";
 import {
@@ -33,11 +34,13 @@ type VisualNode = {
   assigned: boolean;
   node?: BusinessGoalNode;
   pendingExpense?: BusinessFixedExpense;
+  pendingBatch?: InventoryPurchaseBatch;
   pendingAutomaticKind?: AutomaticVariableKind;
 };
 
 export type PendingGoalVariable =
   | { type: "expense"; expense: BusinessFixedExpense }
+  | { type: "batch"; batch: InventoryPurchaseBatch }
   | { type: "automatic"; kind: AutomaticVariableKind; label: string; description: string };
 
 function nodeConfigValue(node: BusinessGoalNode, key: string): string {
@@ -71,14 +74,28 @@ function isFixedExpenseVisualNode(visualNode: VisualNode): boolean {
   return Boolean(visualNode.node && nodeConfigValue(visualNode.node, "fixed_expense_id"));
 }
 
+function isBatchVisualNode(visualNode: VisualNode): boolean {
+  return Boolean(visualNode.node && nodeConfigValue(visualNode.node, "batch_id"));
+}
+
 function visualNodePalette(visualNode: VisualNode) {
   const fixedExpense = isFixedExpenseVisualNode(visualNode);
+  const batchExpense = isBatchVisualNode(visualNode) || visualNode.kind === "expense";
   if (fixedExpense) {
     return {
       border: visualNode.assigned ? "#f59e0b" : "rgba(245,158,11,0.58)",
       background: visualNode.assigned ? "rgba(245,158,11,0.16)" : "rgba(245,158,11,0.08)",
       text: "#fbbf24",
       shadow: visualNode.assigned ? "0 12px 30px rgba(245,158,11,0.10)" : "none",
+    };
+  }
+
+  if (batchExpense) {
+    return {
+      border: visualNode.assigned ? "#f87171" : "rgba(248,113,113,0.58)",
+      background: visualNode.assigned ? "rgba(248,113,113,0.16)" : "rgba(248,113,113,0.08)",
+      text: "#fca5a5",
+      shadow: visualNode.assigned ? "0 12px 30px rgba(248,113,113,0.10)" : "none",
     };
   }
 
@@ -102,6 +119,7 @@ export default function GoalNodeBoard({
   onRequestVariablePicker,
   onConnectExistingNode,
   onAssignPendingExpense,
+  onAssignPendingBatch,
   onAssignPendingAutomatic,
 }: {
   goal: BusinessGoal;
@@ -115,6 +133,7 @@ export default function GoalNodeBoard({
   onRequestVariablePicker: () => void;
   onConnectExistingNode: (node: BusinessGoalNode) => void;
   onAssignPendingExpense: (expense: BusinessFixedExpense) => void;
+  onAssignPendingBatch: (batch: InventoryPurchaseBatch) => void;
   onAssignPendingAutomatic: (kind: AutomaticVariableKind) => void;
 }) {
   const graphViewportRef = useRef<HTMLDivElement | null>(null);
@@ -155,6 +174,21 @@ export default function GoalNodeBoard({
           detail: formatBolivianos(pendingVariable.expense.monto),
           assigned: false,
           pendingExpense: pendingVariable.expense,
+        },
+      ];
+    }
+
+    if (pendingVariable.type === "batch") {
+      return [
+        ...assigned,
+        {
+          id: `pending-batch:${pendingVariable.batch.id}`,
+          kind: "expense" as const,
+          title: `Lote de ${pendingVariable.batch.item_nombre ?? "inventario"}`,
+          subtitle: "Gasto variable",
+          detail: formatBolivianos(pendingVariable.batch.costo_total),
+          assigned: false,
+          pendingBatch: pendingVariable.batch,
         },
       ];
     }
@@ -271,6 +305,7 @@ export default function GoalNodeBoard({
     if (!dragLine) return;
     setDragLine(null);
     if (visualNode.pendingExpense) onAssignPendingExpense(visualNode.pendingExpense);
+    if (visualNode.pendingBatch) onAssignPendingBatch(visualNode.pendingBatch);
     if (visualNode.pendingAutomaticKind) onAssignPendingAutomatic(visualNode.pendingAutomaticKind);
   };
 
@@ -485,6 +520,11 @@ export default function GoalNodeBoard({
                 {isFixedExpenseVisualNode(visualNode) && (
                   <div style={{ color: "#fbbf24", fontSize: 10, fontWeight: 950, textTransform: "uppercase", marginBottom: 5 }}>
                     Gasto fijo
+                  </div>
+                )}
+                {isBatchVisualNode(visualNode) && (
+                  <div style={{ color: "#fca5a5", fontSize: 10, fontWeight: 950, textTransform: "uppercase", marginBottom: 5 }}>
+                    Gasto variable - lote
                   </div>
                 )}
                 <div style={{ fontSize: 13, fontWeight: 950, lineHeight: 1.2 }}>{visualNode.title}</div>

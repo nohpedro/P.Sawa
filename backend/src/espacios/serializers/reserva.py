@@ -6,7 +6,7 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from common_vap.enums import ReservaEstado
-from inventario.models import InventoryPromotion, InventoryPromotionPriority, InventoryPromotionType
+from inventario.models import InventoryItemType, InventoryPromotion, InventoryPromotionPriority, InventoryPromotionType
 from users.models import Cliente
 from ..models import EspacioActividad, Reserva, ReservaPromotionCredit, ReservaPromotionCreditStatus
 
@@ -248,6 +248,10 @@ class ReservaSerializer(serializers.ModelSerializer):
         if inicio and fin and fin <= inicio:
             raise serializers.ValidationError({"fin": "La fecha/hora fin debe ser posterior a inicio."})
 
+        changes_schedule = self.instance is None or "inicio" in attrs or "fin" in attrs
+        if changes_schedule and inicio and inicio < timezone.now():
+            raise serializers.ValidationError({"inicio": "La reserva no puede iniciar en una fecha u hora anterior a la actual."})
+
         if not user.is_staff:
             if incoming_usuario and incoming_usuario != user:
                 raise serializers.ValidationError({"usuario": "No puedes crear/editar reservas para otro usuario."})
@@ -332,6 +336,8 @@ class ReservaSerializer(serializers.ModelSerializer):
                 "item_regalo": str(gift_promotion.item_regalo_id) if gift_promotion.item_regalo_id else None,
                 "item_regalo_nombre": gift_promotion.item_regalo.nombre if gift_promotion.item_regalo_id else "",
                 "cantidad": str(gift_promotion.cantidad_item_regalo),
+                "entregable": bool(gift_promotion.item_regalo_id and gift_promotion.item_regalo.tipo == InventoryItemType.CONSUMIBLE),
+                "entregada": False,
             })
 
         discount = validated_data.get("descuento_promocion")

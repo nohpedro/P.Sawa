@@ -107,7 +107,7 @@ export default function PromotionModal({
                 {saleItems.map((item) => <option key={item.id} value={item.id}>{item.nombre}</option>)}
               </select>
             </label>
-            <Input label="Cantidad" type="number" min="0.01" step="0.01" value={draft.cantidad_item_regalo ?? "1"} onChange={(event) => set({ cantidad_item_regalo: event.target.value })} />
+            <Input label="Cantidad" type="number" min="1" step="1" value={draft.cantidad_item_regalo ?? "1"} onChange={(event) => set({ cantidad_item_regalo: event.target.value })} />
           </div>
         )}
 

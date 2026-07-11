@@ -390,14 +390,16 @@ export function salesNoteTotal(lines: SalesNoteLine[]): number {
 }
 
 export function linesFromReservations(reservas: Reserva[]): SalesNoteLine[] {
-  return reservas.map((reserva) => ({
-    id: `reserva-${reserva.id}`,
-    source: "reserva",
-    description: `${reserva.actividad_nombre ?? "Reserva"} - ${reserva.espacio_nombre ?? "Espacio"} (${timeRange(reserva)})`,
-    reference: reserva.estado_reserva,
-    quantity: "1",
-    unitPrice: reserva.monto_estimado ?? "0",
-  }));
+  return reservas
+    .filter((reserva) => reserva.estado_reserva !== "CANCELADA")
+    .map((reserva) => ({
+      id: `reserva-${reserva.id}`,
+      source: "reserva",
+      description: `${reserva.actividad_nombre ?? "Reserva"} - ${reserva.espacio_nombre ?? "Espacio"} (${timeRange(reserva)})`,
+      reference: reserva.estado_reserva,
+      quantity: "1",
+      unitPrice: reserva.monto_estimado ?? "0",
+    }));
 }
 
 export function linesFromProductSales(sales: InventoryProductSale[], date: string): SalesNoteLine[] {

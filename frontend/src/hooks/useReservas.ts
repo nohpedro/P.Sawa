@@ -155,6 +155,23 @@ export function useReservas() {
     }
   }, []);
 
+  const deliverPromotion = useCallback(async (id: string, promocionId: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await reservasService.deliverPromotion(id, promocionId);
+      setCurrent(res);
+      return res;
+    } catch (e: unknown) {
+      const raw = getErrorMessage(e, "Error al marcar la promocion como entregada");
+      const msg = humanizeReservaError(raw);
+      setError(msg);
+      throw new Error(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   return {
     data,
     current,
@@ -166,6 +183,7 @@ export function useReservas() {
     update,
     patch,
     remove,
+    deliverPromotion,
     setCurrent,
   };
 }

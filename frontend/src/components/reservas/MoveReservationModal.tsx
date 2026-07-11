@@ -41,6 +41,7 @@ export default function MoveReservationModal({
 }) {
   const [inicioHHMM, setInicioHHMM] = useState<HHMM>("19:00");
   const [error, setError] = useState<string | null>(null);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   const duration = useMemo(() => (reservation ? reservationDurationMinutes(reservation) : 60), [reservation]);
   const finHHMM = useMemo(() => addMinutes(inicioHHMM, duration), [duration, inicioHHMM]);
@@ -53,9 +54,19 @@ export default function MoveReservationModal({
   useEffect(() => {
     if (!reservation || !open) return;
     const start = formatHHMM(reservation.inicio) as HHMM;
-    setInicioHHMM(start);
+    const now = new Date();
+    const minimumStart = day === toYYYYMMDD(now) ? dateToHHMM(now) : null;
+    const nextStart = minimumStart && hhmmToMinutes(start) < hhmmToMinutes(minimumStart) ? minimumStart : start;
+    setInicioHHMM(nextStart);
     setError(null);
-  }, [open, reservation]);
+    setNowTick(Date.now());
+  }, [day, open, reservation]);
+
+  useEffect(() => {
+    if (!open) return;
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [open]);
 
   const selectedRange = useMemo(() => {
     return {
@@ -63,6 +74,12 @@ export default function MoveReservationModal({
       end: hhmmToMinutes(finHHMM),
     };
   }, [finHHMM, inicioHHMM]);
+  const selectedStartISO = useMemo(() => combineDateAndTimeToISO(day, inicioHHMM), [day, inicioHHMM]);
+  const selectedStartsInPast = useMemo(() => new Date(selectedStartISO).getTime() < nowTick, [nowTick, selectedStartISO]);
+  const minStartHHMM = useMemo(() => {
+    const now = new Date(nowTick);
+    return day === toYYYYMMDD(now) ? dateToHHMM(now) : undefined;
+  }, [day, nowTick]);
 
   const blockingReservations = useMemo(() => {
     if (!reservation) return [];
@@ -96,6 +113,11 @@ export default function MoveReservationModal({
 
     if (selectedRange.end <= selectedRange.start) {
       setError("La hora fin debe ser mayor a la hora inicio.");
+      return;
+    }
+
+    if (selectedStartsInPast) {
+      setError("No se puede mover la reserva a una fecha u hora anterior a la actual.");
       return;
     }
 
@@ -186,6 +208,7 @@ export default function MoveReservationModal({
                 value={inicioHHMM}
                 onChange={onInicioChange}
                 minuteStep={5}
+                minValue={minStartHHMM}
               />
 
               <div
@@ -211,16 +234,20 @@ export default function MoveReservationModal({
             <div style={{ display: "grid", gap: 10 }}>
               <div
                 style={{
-                  border: `1px solid ${overlappingReservation ? "#ff5252" : "rgba(142,229,159,0.32)"}`,
+                  border: `1px solid ${overlappingReservation || selectedStartsInPast ? "#ff5252" : "rgba(142,229,159,0.32)"}`,
                   borderRadius: 10,
-                  background: overlappingReservation ? "#3f1111" : "#0b1220",
+                  background: overlappingReservation || selectedStartsInPast ? "#3f1111" : "#0b1220",
                   padding: 12,
-                  color: overlappingReservation ? "#fecaca" : "#cbd5e1",
+                  color: overlappingReservation || selectedStartsInPast ? "#fecaca" : "#cbd5e1",
                   fontSize: 13,
                   lineHeight: 1.45,
                 }}
               >
-                {overlappingReservation ? (
+                {selectedStartsInPast ? (
+                  <>
+                    <strong>Horario no permitido.</strong> El nuevo inicio no puede estar antes de la fecha y hora actual.
+                  </>
+                ) : overlappingReservation ? (
                   <>
                     <strong>Horario ocupado.</strong> Se cruza con {formatHHMM(overlappingReservation.inicio)} -{" "}
                     {formatHHMM(overlappingReservation.fin)}.
@@ -239,7 +266,7 @@ export default function MoveReservationModal({
                 <Button variant="outline" onClick={onClose} disabled={loading}>
                   Cancelar
                 </Button>
-                <Button onClick={() => void submit()} disabled={loading || !!overlappingReservation || selectedRange.end <= selectedRange.start}>
+                <Button onClick={() => void submit()} disabled={loading || !!overlappingReservation || selectedStartsInPast || selectedRange.end <= selectedRange.start}>
                   {loading ? <Loader label="Moviendo..." /> : "Mover reserva"}
                 </Button>
               </div>

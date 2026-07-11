@@ -10,6 +10,7 @@ import FullScreenModal from "../../components/reservas/FullScreenModal";
 import ReservaForm from "../../components/reservas/ReservaForm";
 import ReservationConfirmation from "../../components/reservas/ReservationConfirmation";
 import MoveReservationModal from "../../components/reservas/MoveReservationModal";
+import ExtendReservationModal from "../../components/reservas/ExtendReservationModal";
 
 import { useReservas } from "../../hooks/useReservas";
 import { formatHHMM, toYYYYMMDD } from "../../utils/date";
@@ -20,7 +21,10 @@ type ToastState = { open: boolean; message: string; type: "info" | "success" | "
 function promotionSummary(reservation: Reserva): string {
   const applied = reservation.promociones_aplicadas ?? [];
   if (!applied.length) return "-";
-  return applied.map((promotion) => promotion.beneficio || promotion.nombre).join(", ");
+  return applied.map((promotion) => {
+    const deliverable = promotion.entregable ?? promotion.tipo === "item_regalo";
+    return `${promotion.beneficio || promotion.nombre}${deliverable ? (promotion.entregada ? " (entregada)" : " (pendiente de entrega)") : ""}`;
+  }).join(", ");
 }
 
 export default function ReservationsPage() {
@@ -33,6 +37,7 @@ export default function ReservationsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [confirmationOpen, setConfirmationOpen] = useState(false);
   const [movingReservation, setMovingReservation] = useState<Reserva | null>(null);
+  const [extendingReservation, setExtendingReservation] = useState<Reserva | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [dayReservationsOpen, setDayReservationsOpen] = useState(true);
   const [hourQuery, setHourQuery] = useState("");
@@ -85,9 +90,22 @@ export default function ReservationsPage() {
     const now = new Date();
     return month.getMonth() === now.getMonth() && month.getFullYear() === now.getFullYear();
   }, [month]);
+  const selectedDayInPast = selectedDay < today;
 
   const onDoubleClickDay = (day: string) => {
+    if (day < today) {
+      setToast({ open: true, message: "No se pueden crear reservas en fechas anteriores a hoy.", type: "info" });
+      return;
+    }
     setSelectedDay(day);
+    setModalOpen(true);
+  };
+
+  const openCreateReservation = () => {
+    if (selectedDayInPast) {
+      setToast({ open: true, message: "Selecciona una fecha actual o futura para crear la reserva.", type: "info" });
+      return;
+    }
     setModalOpen(true);
   };
 
@@ -103,6 +121,23 @@ export default function ReservationsPage() {
     setMovingReservation(null);
     setToast({ open: true, message: "Reserva movida correctamente.", type: "success" });
     await loadDay(selectedDay);
+  };
+
+  const onExtendReservation = async (id: string, payload: Pick<ReservaWriteDTO, "fin">) => {
+    await reservas.patch(id, payload);
+    setExtendingReservation(null);
+    setToast({ open: true, message: "Reserva extendida correctamente. Se actualizo la hora fin y el monto.", type: "success" });
+    await loadDay(selectedDay);
+  };
+
+  const onDeliverPromotion = async (reservation: Reserva, promocionId: string) => {
+    try {
+      await reservas.deliverPromotion(reservation.id, promocionId);
+      setToast({ open: true, message: "Promocion marcada como entregada.", type: "success" });
+      await loadDay(selectedDay);
+    } catch (err) {
+      setToast({ open: true, message: err instanceof Error ? err.message : "No se pudo marcar la promocion.", type: "error" });
+    }
   };
 
   const bothPanelsOpen = calendarOpen && dayReservationsOpen;
@@ -129,7 +164,7 @@ export default function ReservationsPage() {
               </Button>
             )}
 
-            <Button onClick={() => setModalOpen(true)}>+ Nueva reserva</Button>
+            <Button onClick={openCreateReservation} disabled={selectedDayInPast}>+ Nueva reserva</Button>
 
             <Button
               variant="outline"
@@ -184,6 +219,7 @@ export default function ReservationsPage() {
           <MonthCalendar
             month={month}
             selectedDay={selectedDay}
+            disablePastDays
             onSelectDay={setSelectedDay}
             onDoubleClickDay={onDoubleClickDay}
           />
@@ -246,14 +282,15 @@ export default function ReservationsPage() {
                 <div className="fids-cell">{promotionSummary(r)}</div>
                 <div className="fids-cell">{r.estado_reserva}</div>
                 <div className="fids-cell">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setMovingReservation(r)}
-                    disabled={["CANCELADA", "FINALIZADA"].includes(r.estado_reserva)}
-                  >
-                    Mover
-                  </Button>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    <Button variant="outline" size="sm" onClick={() => setMovingReservation(r)} disabled={["CANCELADA", "FINALIZADA"].includes(r.estado_reserva)}>Mover</Button>
+                    <Button variant="outline" size="sm" onClick={() => setExtendingReservation(r)} disabled={["CANCELADA", "FINALIZADA"].includes(r.estado_reserva)}>Extender</Button>
+                    {(r.promociones_aplicadas ?? []).filter((promotion) => (promotion.entregable ?? promotion.tipo === "item_regalo") && !promotion.entregada && promotion.promocion_id).map((promotion) => (
+                      <Button key={promotion.promocion_id} size="sm" onClick={() => void onDeliverPromotion(r, promotion.promocion_id!)} disabled={reservas.loading}>
+                        Entregar promo
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               </div>
             ))}
@@ -287,6 +324,16 @@ export default function ReservationsPage() {
         loading={reservas.loading}
         onClose={() => setMovingReservation(null)}
         onMove={onMoveReservation}
+      />
+
+      <ExtendReservationModal
+        open={!!extendingReservation}
+        reservation={extendingReservation}
+        day={selectedDay}
+        dayReservations={rows}
+        loading={reservas.loading}
+        onClose={() => setExtendingReservation(null)}
+        onExtend={onExtendReservation}
       />
 
       <Toast

@@ -12,6 +12,30 @@ from espacios.models import Espacio
 DEFAULT_SALE_MARGIN_PERCENT = Decimal("50.00")
 
 
+def cash_round(value: Decimal) -> Decimal:
+    """Round a price to an amount that can be paid with Bs 0.20/0.50 coins.
+
+    The smallest common cash step is Bs 0.10. Values such as Bs 0.10 and
+    Bs 0.30 are not representable with only those two coin denominations, so
+    the closest representable amount is selected. Ties round upward.
+    """
+    cents = int((Decimal(value) * 100).quantize(Decimal("1")))
+    candidates = []
+    for candidate in range(max(20, cents - 100), cents + 101):
+        if candidate % 10 != 0:
+            continue
+        units = candidate // 10
+        if units in (1, 3):
+            continue
+        candidates.append(candidate)
+    rounded = min(candidates, key=lambda candidate: (abs(candidate - cents), candidate < cents, candidate))
+    return (Decimal(rounded) / Decimal("100")).quantize(Decimal("0.01"))
+
+
+def is_whole_quantity(value: Decimal) -> bool:
+    return value == value.to_integral_value()
+
+
 class InventoryItemType(models.TextChoices):
     CONSUMIBLE = "consumible", "Consumible"
     MANTENIMIENTO = "mantenimiento", "Item con mantenimiento"
@@ -77,10 +101,16 @@ class InventoryItem(BaseModel):
     def clean(self):
         errors = {}
         self.unidad = InventoryUnit.UNIDAD
+        if self.stock_actual is not None and not is_whole_quantity(self.stock_actual):
+            errors["stock_actual"] = "La cantidad debe ser un numero entero de unidades."
+        if self.stock_minimo is not None and not is_whole_quantity(self.stock_minimo):
+            errors["stock_minimo"] = "La cantidad debe ser un numero entero de unidades."
         if self.tipo == InventoryItemType.MANTENIMIENTO:
             self.requiere_mantenimiento = True
         if not self.es_para_venta:
             self.precio_venta_sugerido = Decimal("0.00")
+        elif self.precio_venta_sugerido:
+            self.precio_venta_sugerido = cash_round(self.precio_venta_sugerido)
         if self.fecha_ultimo_mantenimiento and self.fecha_proximo_mantenimiento:
             if self.fecha_proximo_mantenimiento < self.fecha_ultimo_mantenimiento:
                 errors["fecha_proximo_mantenimiento"] = "Debe ser posterior al ultimo mantenimiento."
@@ -107,7 +137,7 @@ class InventoryItem(BaseModel):
             return
 
         multiplier = Decimal("1.00") + (self.margen_venta_porcentaje / Decimal("100.00"))
-        sale_price = (last_batch.costo_unitario * multiplier).quantize(Decimal("0.01"))
+        sale_price = cash_round(last_batch.costo_unitario * multiplier)
         updates = {}
         if self.precio_venta_sugerido != sale_price:
             updates["precio_venta_sugerido"] = sale_price
@@ -170,6 +200,8 @@ class InventoryPromotion(BaseModel):
 
     def clean(self):
         errors = {}
+        if self.cantidad_item_regalo is not None and not is_whole_quantity(self.cantidad_item_regalo):
+            errors["cantidad_item_regalo"] = "La cantidad del item debe ser un numero entero de unidades."
         if self.fecha_inicio and self.fecha_fin and self.fecha_fin < self.fecha_inicio:
             errors["fecha_fin"] = "Debe ser posterior o igual a la fecha de inicio."
 
@@ -232,6 +264,12 @@ class InventoryPurchaseBatch(BaseModel):
         ordering = ["-fecha_compra", "-created_at"]
 
     def clean(self):
+        errors = {}
+        if self.cantidad is not None and not is_whole_quantity(self.cantidad):
+            errors["cantidad"] = "La cantidad del lote debe ser un numero entero de unidades."
+        if errors:
+            raise ValidationError(errors)
+
         if self.cantidad and self.costo_total and not self.costo_unitario:
             self.costo_unitario = self.costo_total / self.cantidad
 
@@ -240,7 +278,7 @@ class InventoryPurchaseBatch(BaseModel):
             self.costo_unitario = (self.costo_total / self.cantidad).quantize(Decimal("0.01"))
         if self.item_id and self.item.es_para_venta:
             multiplier = Decimal("1.00") + (self.item.margen_venta_porcentaje / Decimal("100.00"))
-            self.precio_venta_unitario = (self.costo_unitario * multiplier).quantize(Decimal("0.01"))
+            self.precio_venta_unitario = cash_round(self.costo_unitario * multiplier)
         else:
             self.precio_venta_unitario = Decimal("0.00")
         self.full_clean()
@@ -315,6 +353,8 @@ class InventoryProductSale(BaseModel):
 
     def clean(self):
         errors = {}
+        if self.cantidad is not None and not is_whole_quantity(self.cantidad):
+            errors["cantidad"] = "La cantidad vendida debe ser un numero entero de unidades."
         if self.item_id:
             if self.item.tipo != InventoryItemType.CONSUMIBLE:
                 errors["item"] = "Solo se pueden vender items consumibles."
@@ -340,6 +380,8 @@ class InventoryProductSale(BaseModel):
     def save(self, *args, **kwargs):
         if self.item_id and not self.precio_unitario:
             self.precio_unitario = self.item.precio_venta_sugerido
+        if self.precio_unitario:
+            self.precio_unitario = cash_round(self.precio_unitario)
         if self.cantidad and self.precio_unitario:
             self.total = (self.cantidad * self.precio_unitario).quantize(Decimal("0.01"))
 

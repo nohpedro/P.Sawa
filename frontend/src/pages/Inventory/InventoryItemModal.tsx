@@ -4,7 +4,7 @@ import Loader from "../../components/ui/Loader";
 import type { InventoryItemType, InventoryItemWriteDTO } from "../../models/inventory";
 import { ITEM_TYPES } from "./constants";
 import { DEFAULT_SALE_MARGIN_PERCENT } from "./permissions";
-import { Modal, panelStyle, selectStyle } from "./shared";
+import { isWholeQuantity, Modal, panelStyle, selectStyle } from "./shared";
 
 export default function InventoryItemModal({
   mode,
@@ -28,6 +28,7 @@ export default function InventoryItemModal({
   const set = (patch: Partial<InventoryItemWriteDTO>) => onChange({ ...draft, ...patch });
   const saleMarginValue = canEditSaleMargin ? draft.margen_venta_porcentaje ?? DEFAULT_SALE_MARGIN_PERCENT : DEFAULT_SALE_MARGIN_PERCENT;
   const needsMaintenance = draft.tipo === "mantenimiento" || draft.requiere_mantenimiento;
+  const invalidQuantity = mode === "edit" && (!isWholeQuantity(draft.stock_actual) || !isWholeQuantity(draft.stock_minimo));
 
   return (
     <Modal
@@ -52,10 +53,11 @@ export default function InventoryItemModal({
         <Input label="Codigo" value={draft.sku ?? ""} onChange={(event) => set({ sku: event.target.value })} placeholder="Opcional" />
         {mode === "edit" && (
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-            <Input label="Stock actual" type="number" min="0" step="0.01" value={draft.stock_actual ?? "0"} onChange={(event) => set({ stock_actual: event.target.value })} />
-            <Input label="Stock minimo" type="number" min="0" step="0.01" value={draft.stock_minimo ?? "0"} onChange={(event) => set({ stock_minimo: event.target.value })} />
+            <Input label="Stock actual" type="number" min="0" step="1" value={draft.stock_actual ?? "0"} onChange={(event) => set({ stock_actual: event.target.value })} />
+            <Input label="Stock minimo" type="number" min="0" step="1" value={draft.stock_minimo ?? "0"} onChange={(event) => set({ stock_minimo: event.target.value })} />
           </div>
         )}
+        {invalidQuantity && <div style={{ color: "#ffb4b4", fontSize: 12 }}>El stock se registra en unidades completas. No se permiten cantidades como 1,5.</div>}
         <label style={{ ...panelStyle, display: "flex", gap: 10, alignItems: "center" }}>
           <input type="checkbox" checked={!!draft.es_para_venta} onChange={(event) => set({ es_para_venta: event.target.checked, margen_venta_porcentaje: saleMarginValue })} />
           <span style={{ fontSize: 13, fontWeight: 850 }}>Este item es para venta</span>
@@ -91,7 +93,7 @@ export default function InventoryItemModal({
           <input type="checkbox" checked={draft.activo} onChange={(event) => set({ activo: event.target.checked })} />
           <span style={{ fontSize: 13, fontWeight: 850 }}>Item activo</span>
         </label>
-        <Button onClick={onSubmit} disabled={loading || !draft.nombre.trim()} fullWidth>
+        <Button onClick={onSubmit} disabled={loading || !draft.nombre.trim() || invalidQuantity} fullWidth>
           {loading ? <Loader label="Guardando..." /> : mode === "create" ? "Crear item" : "Guardar cambios"}
         </Button>
         {mode === "edit" && onDelete && (

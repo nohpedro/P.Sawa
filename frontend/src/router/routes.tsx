@@ -33,6 +33,7 @@ import BusinessGoalNodesPage from "../pages/BusinessGoals/BusinessGoalNodesPage.
 import BusinessGoalVariablesPage from "../pages/BusinessGoals/BusinessGoalVariablesPage.tsx";
 import BusinessGoalsDashboardPage from "../pages/BusinessGoals/BusinessGoalsDashboardPage.tsx";
 import BusinessGoalsListPage from "../pages/BusinessGoals/BusinessGoalsListPage.tsx";
+import BusinessGoalsPastPage from "../pages/BusinessGoals/BusinessGoalsPastPage.tsx";
 import BusinessFixedExpensesPage from "../pages/BusinessGoals/BusinessFixedExpensesPage.tsx";
 
 export const routes = [
@@ -66,6 +67,7 @@ export const routes = [
           { element: <ModuleRoute module="inventory_promotions" />, children: [{ path: PATHS.inventoryPromotions, element: <PromotionPage /> }] },
           { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalsDashboard, element: <BusinessGoalsDashboardPage /> }] },
           { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalsList, element: <BusinessGoalsListPage /> }] },
+          { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalsPast, element: <BusinessGoalsPastPage /> }] },
           { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalCreate, element: <BusinessGoalFormPage /> }] },
           { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalExpenses, element: <BusinessFixedExpensesPage /> }] },
           { element: <ModuleRoute module="business_goals" />, children: [{ path: PATHS.businessGoalVariables, element: <BusinessGoalVariablesPage /> }] },

@@ -19,8 +19,13 @@ export default function GoalProgressCard({ goal }: { goal: BusinessGoal }) {
         <div style={{ width: `${Math.min(value, 100)}%`, height: "100%", background: progressColor(value) }} />
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, fontSize: 12 }}>
-        <span>Acumulado: <strong>{money(progress?.monto_acumulado)}</strong></span>
-        <span>Faltante: <strong>{money(progress?.monto_faltante)}</strong></span>
+        <span>Ganancia: <strong>{money(progress?.ganancia_acumulada)}</strong> / {money(goal.monto_objetivo)}</span>
+        <span>Gastos pendientes: <strong>{money(progress?.gastos_pendientes)}</strong></span>
+        <span>Ingreso faltante: <strong>{money(progress?.ingreso_faltante)}</strong></span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, fontSize: 12, color: "var(--color-text-muted)" }}>
+        <span>Ingreso acumulado: <strong style={{ color: "var(--color-text)" }}>{money(progress?.ingreso_acumulado)}</strong></span>
+        <span>Ingreso necesario: <strong style={{ color: "var(--color-text)" }}>{money(progress?.ingreso_necesario)}</strong></span>
         <span>Dias: <strong>{progress?.dias_restantes ?? 0}</strong></span>
       </div>
     </div>

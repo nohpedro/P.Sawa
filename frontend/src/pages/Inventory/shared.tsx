@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import Button from "../../components/ui/Button";
+import { cashRound, isWholeQuantity } from "../../utils/currency";
 
 export const panelStyle: CSSProperties = {
   border: "1px solid var(--color-border)",
@@ -21,6 +22,10 @@ export function money(value: string | number | null | undefined) {
   const n = Number(value ?? 0);
   return `Bs ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
+
+export { cashRound };
+export { isWholeQuantity };
+
 
 export function Modal({
   title,

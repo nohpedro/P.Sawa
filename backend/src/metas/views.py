@@ -1,6 +1,8 @@
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from django.db.models import Q
+from django.utils import timezone
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema
 
@@ -16,6 +18,7 @@ from .models import (
     BusinessGoalCycle,
     BusinessGoalMovement,
     BusinessGoalNode,
+    GoalStatus,
 )
 from .serializers import (
     BusinessFixedExpenseSerializer,
@@ -25,7 +28,7 @@ from .serializers import (
     BusinessGoalNodeSerializer,
     BusinessGoalSerializer,
 )
-from .services import current_cycle, goal_progress, recalculate_cycle, renew_goal_if_due
+from .services import current_cycle, goal_progress, recalculate_cycle, renew_goal_if_due, sync_cycle_with_goal
 
 
 AUTH = (AccessTokenAuthentication,)
@@ -63,10 +66,27 @@ class BusinessGoalViewSet(AuditLogMixin, viewsets.ModelViewSet):
     ordering_fields = ("fecha_inicio", "fecha_fin", "monto_objetivo", "prioridad", "estado", "created_at")
     filterset_fields = ("tipo", "prioridad", "estado")
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        periodo = self.request.query_params.get("periodo")
+        today = timezone.localdate()
+        past_filter = Q(fecha_fin__lt=today) | Q(estado__in=[GoalStatus.COMPLETED, GoalStatus.CANCELLED])
+
+        if periodo == "pasadas":
+            return queryset.filter(past_filter)
+        if periodo == "vigentes":
+            return queryset.exclude(past_filter)
+
+        return queryset
+
     def perform_create(self, serializer):
         instance = serializer.save(creado_por=self.request.user)
         current_cycle(instance)
         self._write_audit(AuditLog.Action.CREATE, instance)
+
+    def perform_update(self, serializer):
+        super().perform_update(serializer)
+        sync_cycle_with_goal(serializer.instance)
 
     def get_audit_summary(self, instance):
         return f"meta empresarial {instance.nombre}"

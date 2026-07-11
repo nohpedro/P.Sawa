@@ -25,6 +25,18 @@ export interface GoalProgress {
   monto_acumulado: string;
   monto_faltante: string;
   porcentaje_avance: string;
+  ingreso_acumulado: string;
+  ingreso_necesario: string;
+  ingreso_faltante: string;
+  ingresos_reservas: string;
+  ingresos_ventas: string;
+  gastos_totales: string;
+  gastos_fijos: string;
+  gastos_variables: string;
+  gastos_movimientos: string;
+  gastos_pendientes: string;
+  ganancia_acumulada: string;
+  ganancia_faltante: string;
   dias_restantes: number;
   proyeccion_cumplimiento: string;
   cumplimiento_estimado: boolean;

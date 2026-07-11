@@ -9,7 +9,7 @@ import { useBusinessGoals } from "./hooks/useBusinessGoals";
 import { money } from "./utils/goalCalculations";
 
 export default function BusinessGoalsDashboardPage() {
-  const { goals, loading, error } = useBusinessGoals();
+  const { goals, loading, error } = useBusinessGoals({ periodo: "vigentes" });
   const active = goals.filter((goal) => goal.estado === "activa");
   const target = goals.reduce((sum, goal) => sum + Number(goal.monto_objetivo || 0), 0);
   const accumulated = goals.reduce((sum, goal) => sum + Number(goal.progress?.monto_acumulado || 0), 0);

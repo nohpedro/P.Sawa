@@ -11,6 +11,7 @@ import { getErrorMessage } from "../../utils/error";
 import GoalNav from "./components/GoalNav";
 import { panelStyle } from "./constants";
 import FixedExpenseModal from "./modals/FixedExpenseModal";
+import { buildSplitFixedExpense, fixedExpenseSplitLabel, type FixedExpenseSplitMode } from "./utils/fixedExpenses";
 import { money } from "./utils/goalCalculations";
 
 export default function BusinessFixedExpensesPage() {
@@ -39,14 +40,20 @@ export default function BusinessFixedExpensesPage() {
     return q ? expenses.filter((expense) => `${expense.nombre} ${expense.categoria} ${expense.proveedor}`.toLowerCase().includes(q)) : expenses;
   }, [expenses, query]);
 
-  const save = async (draft: BusinessFixedExpenseWriteDTO) => {
+  const save = async (draft: BusinessFixedExpenseWriteDTO, splitMode: FixedExpenseSplitMode = "none") => {
     setLoading(true);
     try {
-      if (selected) await businessGoalsService.patchExpense(selected.id, draft);
-      else await businessGoalsService.createExpense(draft);
+      const payload = buildSplitFixedExpense(draft, splitMode);
+      if (selected && splitMode === "none") await businessGoalsService.patchExpense(selected.id, payload);
+      else await businessGoalsService.createExpense(payload);
       setModal(false);
       setSelected(null);
       await load();
+      setToast({
+        open: true,
+        type: "success",
+        message: splitMode === "none" ? "Gasto guardado correctamente." : `Gasto ${fixedExpenseSplitLabel(splitMode).toLowerCase()} generado correctamente.`,
+      });
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo guardar el gasto."), type: "error" });
     } finally {
@@ -69,7 +76,9 @@ export default function BusinessFixedExpensesPage() {
                 <span>{expense.fecha_pago}</span>
                 <span style={{ color: expense.estado === "activo" ? "#8ee59f" : "#ffd24a", fontWeight: 900 }}>{expense.estado}</span>
               </div>
-              <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>{expense.categoria} - {expense.proveedor || "Sin proveedor"}</div>
+              <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>
+                {expense.categoria} - {expense.proveedor || "Sin proveedor"} - {expense.frecuencia === "custom_days" ? `Cada ${expense.frecuencia_dias} dia(s)` : expense.frecuencia}
+              </div>
             </button>
           ))}
         </div>

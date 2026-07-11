@@ -14,7 +14,7 @@ import DeleteItemModal from "./DeleteItemModal";
 import InventoryItemModal from "./InventoryItemModal";
 import { ITEM_TYPES } from "./constants";
 import { DEFAULT_SALE_MARGIN_PERCENT, canCreateInventoryItems, canEditSaleMargin, canRegisterBatches, saleMarginOrDefault } from "./permissions";
-import { money, panelStyle, selectStyle } from "./shared";
+import { cashRound, isWholeQuantity, money, panelStyle, selectStyle } from "./shared";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
 type ModalMode = "create" | "edit" | "batch" | "delete" | null;
@@ -61,6 +61,16 @@ function asPayload(item: InventoryItemWriteDTO, canEditMargin: boolean): Invento
     es_para_venta: !!item.es_para_venta,
     margen_venta_porcentaje: saleMarginOrDefault(item.margen_venta_porcentaje, canEditMargin),
   };
+}
+
+function isDuplicateSkuError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : "";
+  return /(sku|codigo)/.test(message) && /(unique|duplic|existe|already)/.test(message);
+}
+
+function hasDuplicateSku(items: InventoryItem[], draft: InventoryItemWriteDTO, currentId?: string): boolean {
+  const sku = draft.sku?.trim().toLowerCase();
+  return Boolean(sku && items.some((item) => item.id !== currentId && item.sku?.trim().toLowerCase() === sku));
 }
 
 export default function InventoryPage() {
@@ -130,7 +140,7 @@ export default function InventoryPage() {
   }, [batchDraft.cantidad, batchDraft.costo_total]);
 
   const salePricePreview = selected?.es_para_venta
-    ? unitCostPreview * (1 + Number(saleMarginOrDefault(batchDraft.margen_venta_porcentaje, userCanEditSaleMargin)) / 100)
+    ? cashRound(unitCostPreview * (1 + Number(saleMarginOrDefault(batchDraft.margen_venta_porcentaje, userCanEditSaleMargin)) / 100))
     : 0;
   const marginPreview = salePricePreview - unitCostPreview;
 
@@ -179,6 +189,11 @@ export default function InventoryPage() {
       return;
     }
     if (!itemDraft.nombre.trim()) return;
+    if (hasDuplicateSku(items, itemDraft)) {
+      setModalMode(null);
+      setToast({ open: true, message: "El codigo ingresado ya pertenece a otro item.", type: "error" });
+      return;
+    }
     setLoading(true);
     try {
       const created = await inventoryService.createItem(asPayload(itemDraft, userCanEditSaleMargin));
@@ -187,7 +202,12 @@ export default function InventoryPage() {
       setToast({ open: true, message: "Item creado.", type: "success" });
       await load();
     } catch (err) {
-      setToast({ open: true, message: getErrorMessage(err, "No se pudo crear el item."), type: "error" });
+      setModalMode(isDuplicateSkuError(err) ? null : "create");
+      setToast({
+        open: true,
+        message: isDuplicateSkuError(err) ? "El codigo ingresado ya pertenece a otro item." : getErrorMessage(err, "No se pudo crear el item."),
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -195,6 +215,11 @@ export default function InventoryPage() {
 
   const onSave = async () => {
     if (!selected || !itemDraft.nombre.trim()) return;
+    if (hasDuplicateSku(items, itemDraft, selected.id)) {
+      setModalMode(null);
+      setToast({ open: true, message: "El codigo ingresado ya pertenece a otro item.", type: "error" });
+      return;
+    }
     setLoading(true);
     try {
       const updated = await inventoryService.patchItem(selected.id, asPayload(itemDraft, userCanEditSaleMargin));
@@ -203,7 +228,12 @@ export default function InventoryPage() {
       setToast({ open: true, message: "Item actualizado.", type: "success" });
       await load();
     } catch (err) {
-      setToast({ open: true, message: getErrorMessage(err, "No se pudo guardar el item."), type: "error" });
+      setModalMode(isDuplicateSkuError(err) ? null : "edit");
+      setToast({
+        open: true,
+        message: isDuplicateSkuError(err) ? "El codigo ingresado ya pertenece a otro item." : getErrorMessage(err, "No se pudo guardar el item."),
+        type: "error",
+      });
     } finally {
       setLoading(false);
     }
@@ -227,6 +257,10 @@ export default function InventoryPage() {
 
   const onCreateBatch = async () => {
     if (!selected) return;
+    if (!isWholeQuantity(batchDraft.cantidad) || !isWholeQuantity(batchDraft.stock_minimo)) {
+      setToast({ open: true, message: "La cantidad y el stock minimo deben ser unidades completas.", type: "error" });
+      return;
+    }
     setLoading(true);
     try {
       await inventoryService.patchItem(selected.id, {
@@ -327,11 +361,11 @@ export default function InventoryPage() {
                     </div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 950 }}>{Number(item.stock_actual).toFixed(2)}</div>
+                    <div style={{ fontWeight: 950 }}>{Number(item.stock_actual).toFixed(0)}</div>
                     <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Unidades</div>
                   </div>
                   <div>
-                    <div style={{ fontWeight: 950 }}>{money(item.precio_venta_sugerido)}</div>
+                    <div style={{ fontWeight: 950 }}>{money(cashRound(item.precio_venta_sugerido))}</div>
                     <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Venta sugerida</div>
                   </div>
                   <div style={{ display: "flex", gap: 8 }}>

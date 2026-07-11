@@ -11,6 +11,10 @@ export interface ReservaPromotionApplied {
   minutos?: number;
   item_regalo_nombre?: string;
   cantidad?: string;
+  entregable?: boolean;
+  entregada?: boolean;
+  entregada_en?: string;
+  entregada_por?: string;
   descuento_porcentaje?: string;
 }
 

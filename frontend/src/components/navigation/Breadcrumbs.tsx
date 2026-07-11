@@ -27,6 +27,8 @@ function labelFor(path: string) {
       return "Metas empresariales";
     case PATHS.businessGoalsList:
       return "Listado de metas";
+    case PATHS.businessGoalsPast:
+      return "Metas pasadas";
     case PATHS.businessGoalCreate:
       return "Nueva meta";
     case PATHS.businessGoalVariables:

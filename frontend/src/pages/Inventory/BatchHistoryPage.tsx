@@ -7,7 +7,7 @@ import Loader from "../../components/ui/Loader";
 import Select from "../../components/ui/Select";
 import type { InventoryItem, InventoryPurchaseBatch } from "../../models/inventory";
 import inventoryService from "../../services/inventory.service";
-import { formatBolivianos } from "../../utils/currency";
+import { cashRound, formatBolivianos } from "../../utils/currency";
 import { endOfMonth, startOfMonth, toYYYYMMDD } from "../../utils/date";
 import { getErrorMessage } from "../../utils/error";
 
@@ -43,7 +43,7 @@ function numberValue(value: string | number | null | undefined) {
 }
 
 function batchSaleTotal(batch: InventoryPurchaseBatch) {
-  return numberValue(batch.cantidad) * numberValue(batch.precio_venta_unitario);
+  return numberValue(batch.cantidad) * cashRound(batch.precio_venta_unitario);
 }
 
 export default function BatchHistoryPage() {
@@ -147,8 +147,8 @@ export default function BatchHistoryPage() {
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <Card
-        title="Historial de ingreso de lotes"
-        subtitle="Consulta compras registradas por fecha, item, proveedor o notas."
+        title="Historial de compras de lotes"
+        subtitle="Consulta gastos variables registrados por fecha, item, proveedor o notas."
         rightSlot={
           <Button variant="outline" onClick={() => void loadBatches()} disabled={loading}>
             Refrescar
@@ -161,7 +161,7 @@ export default function BatchHistoryPage() {
             <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Lotes ingresados</div>
           </div>
           <div style={panelStyle}>
-            <strong>{stats.totalCantidad.toFixed(2)}</strong>
+            <strong>{stats.totalCantidad.toFixed(0)}</strong>
             <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Unidades ingresadas</div>
           </div>
           <div style={panelStyle}>
@@ -203,7 +203,7 @@ export default function BatchHistoryPage() {
         </div>
       </Card>
 
-      <Card title="Ingresos por lote" subtitle="Detalle cronologico de compras y registros de stock.">
+      <Card title="Gastos variables por lote" subtitle="Detalle cronologico de compras que se descuentan antes de calcular la ganancia.">
         <div style={{ display: "grid", gap: 12 }}>
           {loading && <Loader label="Cargando historial..." />}
           {error && <div style={{ color: "#ff5252", fontSize: 13 }}>{error}</div>}
@@ -265,7 +265,7 @@ export default function BatchHistoryPage() {
                       )}
                     </div>
                     <div>
-                      <strong>{numberValue(batch.cantidad).toFixed(2)}</strong>
+                      <strong>{numberValue(batch.cantidad).toFixed(0)}</strong>
                       <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>Unidades</div>
                     </div>
                     <div>
@@ -277,7 +277,7 @@ export default function BatchHistoryPage() {
                     <div>
                       <strong>{formatBolivianos(batch.costo_unitario)}</strong>
                       <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 4 }}>
-                        Venta unit.: {formatBolivianos(batch.precio_venta_unitario)}
+                        Venta unit.: {formatBolivianos(cashRound(batch.precio_venta_unitario))}
                       </div>
                     </div>
                     <div>

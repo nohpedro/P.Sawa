@@ -4,6 +4,7 @@ import Button from "../../../components/ui/Button";
 import Card from "../../../components/ui/Card";
 import Loader from "../../../components/ui/Loader";
 import Toast from "../../../components/ui/Toast";
+import type { InventoryPurchaseBatch } from "../../../models/inventory";
 import type { BusinessFixedExpense, BusinessGoalConnection, BusinessGoalNode, BusinessGoalNodeWriteDTO } from "../../../models/businessGoals";
 import businessGoalsService from "../../../services/businessGoals.service";
 import { formatBolivianos } from "../../../utils/currency";
@@ -13,7 +14,7 @@ import ConfirmGoalActionModal from "../modals/ConfirmGoalActionModal";
 import GoalConnectionModal from "../modals/GoalConnectionModal";
 import GoalNodeModal from "../modals/GoalNodeModal";
 import GoalVariablePickerModal from "../modals/GoalVariablePickerModal";
-import { nodeDraftFromFixedExpense } from "../utils/variableMapping";
+import { nodeDraftFromFixedExpense, nodeDraftFromPurchaseBatch } from "../utils/variableMapping";
 import GoalNodeBoard, { type AutomaticVariableKind, type PendingGoalVariable } from "./GoalNodeBoard";
 
 const expenseNodeTypes = new Set(["salarios", "servicios", "alquiler", "gastos_variables", "facturas_pendientes", "gasto_fijo"]);
@@ -32,7 +33,7 @@ export default function GoalNodeWorkspace({
   compact?: boolean;
   onBack?: () => void;
 }) {
-  const { goal, nodes, connections, expenses, loading, error, reload } = useGoalWorkspace(goalId);
+  const { goal, nodes, connections, expenses, batches, loading, error, reload } = useGoalWorkspace(goalId);
   const [editingNode, setEditingNode] = useState<BusinessGoalNode | null>(null);
   const [deleteNode, setDeleteNode] = useState<BusinessGoalNode | null>(null);
   const [editingConnection, setEditingConnection] = useState<BusinessGoalConnection | null>(null);
@@ -43,6 +44,8 @@ export default function GoalNodeWorkspace({
   const [toast, setToast] = useState({ open: false, message: "", type: "info" as "info" | "success" | "error" });
   const assignedExpenseIds = new Set(nodes.map((node) => node.config?.fixed_expense_id).filter(Boolean).map(String));
   const availableExpenses = expenses.filter((expense) => !assignedExpenseIds.has(expense.id));
+  const assignedBatchIds = new Set(nodes.map((node) => node.config?.batch_id).filter(Boolean).map(String));
+  const availableBatches = batches.filter((batch) => !assignedBatchIds.has(batch.id));
   const assignedAutomaticKinds = new Set(nodes.filter((node) => !node.config?.fixed_expense_id).map((node) => node.tipo));
   const automaticVariables: Array<{ kind: AutomaticVariableKind; label: string; description: string }> = [
     { kind: "ventas", label: "Ventas de productos", description: "Usa ventas registradas en inventario." },
@@ -111,6 +114,42 @@ export default function GoalNodeWorkspace({
       });
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo asignar el gasto a la meta."), type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const dropBatchOnGoal = async (batch: InventoryPurchaseBatch) => {
+    if (!goal) return;
+    if (nodes.some((node) => node.config?.batch_id === batch.id)) {
+      setToast({ open: true, message: "Este lote ya esta asignado a la meta.", type: "info" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const target = await ensureGoalTargetNode();
+      const variableCount = nodes.filter((node) => node.config?.role !== "goal_target").length;
+      const node = await businessGoalsService.createNode(nodeDraftFromPurchaseBatch({
+        goalId: goal.id,
+        cycleId: goal.progress?.cycle_id,
+        batch,
+        index: variableCount,
+      }));
+      if (target) {
+        await businessGoalsService.createConnection({ goal: goal.id, cycle: goal.progress?.cycle_id, source: node.id, target: target.id, operador: "-", peso: "1" });
+      }
+      await reload();
+      const progress = await businessGoalsService.goalProgress(goal.id);
+      setVariablePickerOpen(false);
+      setPendingVariable(null);
+      setToast({
+        open: true,
+        type: "success",
+        message: `Lote de ${batch.item_nombre ?? "inventario"} asignado por ${formatBolivianos(batch.costo_total)}. Gastos pendientes: ${formatBolivianos(progress.gastos_pendientes)}.`,
+      });
+    } catch (err) {
+      setToast({ open: true, message: getErrorMessage(err, "No se pudo asignar el lote a la meta."), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -277,6 +316,7 @@ export default function GoalNodeWorkspace({
             onRequestVariablePicker={() => setVariablePickerOpen(true)}
             onConnectExistingNode={(node) => void connectExistingNode(node)}
             onAssignPendingExpense={(expense) => void dropExpenseOnGoal(expense)}
+            onAssignPendingBatch={(batch) => void dropBatchOnGoal(batch)}
             onAssignPendingAutomatic={(kind) => void dropAutomaticVariableOnGoal(kind)}
           />
         )}
@@ -285,11 +325,16 @@ export default function GoalNodeWorkspace({
       {nodeModal && goal && createPortal(<GoalNodeModal goalId={goal.id} cycleId={goal.progress?.cycle_id} node={editingNode} expenses={expenses} loading={saving} onClose={() => setNodeModal(false)} onSubmit={saveNode} />, document.body)}
       {variablePickerOpen && createPortal(<GoalVariablePickerModal
         expenses={availableExpenses}
+        batches={availableBatches}
         automaticVariables={availableAutomaticVariables}
         loading={saving}
         onClose={() => setVariablePickerOpen(false)}
         onSelectExpense={(expense) => {
           setPendingVariable({ type: "expense", expense });
+          setVariablePickerOpen(false);
+        }}
+        onSelectBatch={(batch) => {
+          setPendingVariable({ type: "batch", batch });
           setVariablePickerOpen(false);
         }}
         onSelectAutomatic={(kind) => {

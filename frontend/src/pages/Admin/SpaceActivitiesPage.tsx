@@ -5,7 +5,10 @@ import { useTiposActividad } from "../../hooks/useTiposActividad";
 import { useEspacioActividad } from "../../hooks/useEspacioActividad";
 import type { Espacio } from "../../models/espacio";
 import type { EspacioActividad, TipoActividad } from "../../models/actividad";
+import type { Reserva } from "../../models/reserva";
+import reservasService from "../../services/reservas.service";
 import { getErrorMessage } from "../../utils/error";
+import { toYYYYMMDD } from "../../utils/date";
 import SpaceActivityGraph from "./SpaceActivities/components/SpaceActivityGraph";
 import SpaceActivityList from "./SpaceActivities/components/SpaceActivityList";
 import AssignActivityModal from "./SpaceActivities/modals/AssignActivityModal";
@@ -25,6 +28,8 @@ export default function SpaceActivitiesPage() {
   const [relaciones, setRelaciones] = useState<EspacioActividad[]>([]);
   const [pendingActivity, setPendingActivity] = useState<TipoActividad | null>(null);
   const [relationToRemove, setRelationToRemove] = useState<EspacioActividad | null>(null);
+  const [affectedReservations, setAffectedReservations] = useState<Reserva[]>([]);
+  const [checkingAffectedReservations, setCheckingAffectedReservations] = useState(false);
   const [duracion, setDuracion] = useState(60);
   const [precio, setPrecio] = useState("70.00");
   const [toast, setToast] = useState<ToastState>({ open: false, message: "", type: "info" });
@@ -78,6 +83,48 @@ export default function SpaceActivitiesPage() {
     setPendingActivity(activity);
   };
 
+  useEffect(() => {
+    if (!relationToRemove) {
+      setAffectedReservations([]);
+      setCheckingAffectedReservations(false);
+      return;
+    }
+
+    let active = true;
+    const loadAffectedReservations = async () => {
+      setCheckingAffectedReservations(true);
+      try {
+        const res = await reservasService.list({
+          page: "1",
+          page_size: "50",
+          espacio: relationToRemove.espacio,
+          actividad: relationToRemove.tipo,
+          desde: toYYYYMMDD(new Date()),
+          ordering: "inicio",
+        });
+        if (!active) return;
+        const now = Date.now();
+        setAffectedReservations(
+          (res.results ?? []).filter((reservation) =>
+            !["CANCELADA", "FINALIZADA"].includes(reservation.estado_reserva) &&
+            new Date(reservation.inicio).getTime() >= now
+          )
+        );
+      } catch (err) {
+        if (!active) return;
+        setAffectedReservations([]);
+        setToast({ open: true, message: getErrorMessage(err, "No se pudieron revisar las reservas afectadas."), type: "error" });
+      } finally {
+        if (active) setCheckingAffectedReservations(false);
+      }
+    };
+
+    void loadAffectedReservations();
+    return () => {
+      active = false;
+    };
+  }, [relationToRemove]);
+
   const confirmAssignment = async () => {
     if (!espacioSel?.id || !pendingActivity?.id) return;
 
@@ -107,8 +154,15 @@ export default function SpaceActivitiesPage() {
     const rel = relationToRemove;
     try {
       await ea.remove(rel.id);
-      setToast({ open: true, message: "Asignacion eliminada.", type: "success" });
+      setToast({
+        open: true,
+        message: affectedReservations.length
+          ? `Asignacion eliminada. ${affectedReservations.length} reserva(s) futura(s) fueron canceladas.`
+          : "Asignacion eliminada.",
+        type: "success",
+      });
       setRelationToRemove(null);
+      setAffectedReservations([]);
       await refreshRelaciones(espacioSel?.id);
     } catch (err) {
       setToast({ open: true, message: getErrorMessage(err, "No se pudo eliminar la asignacion."), type: "error" });
@@ -146,6 +200,8 @@ export default function SpaceActivitiesPage() {
             <RemoveActivityAssignmentModal
               space={espacioSel}
               relation={relationToRemove}
+              affectedReservations={affectedReservations}
+              checkingReservations={checkingAffectedReservations}
               loading={ea.loading}
               onClose={() => setRelationToRemove(null)}
               onConfirm={() => void confirmRemoveRelation()}

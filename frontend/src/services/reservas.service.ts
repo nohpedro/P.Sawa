@@ -14,6 +14,7 @@ export type ReservasQuery = {
   cliente?: string;
   actividad?: string;
   estado_reserva?: string;
+  ordering?: string;
 };
 
 type QueryParams = Record<string, string>;
@@ -69,6 +70,10 @@ class ReservasService {
   async listPromotionCredits(params?: { cliente?: string }): Promise<ReservaPromotionCredit[]> {
     const q = cleanParams(params);
     return (await this.request.getRequest(`${ENDPOINT}creditos-promocion/`, q)) as ReservaPromotionCredit[];
+  }
+
+  async deliverPromotion(id: string, promocionId: string): Promise<Reserva> {
+    return (await this.request.postRequest(`${ENDPOINT}${id}/entregar-promocion/`, { promocion_id: promocionId })) as Reserva;
   }
 }
 

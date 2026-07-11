@@ -16,6 +16,7 @@ import inventoryService from "../services/inventory.service";
 import {
   FiBox,
   FiCalendar,
+  FiArchive,
   FiClock,
   FiDollarSign,
   FiGrid,
@@ -106,6 +107,7 @@ export default function AuthLayout() {
       items: [
         ...(can("business_goals") ? [{ label: "Panel general", to: PATHS.businessGoalsDashboard, icon: FiTrendingUp, end: true }] : []),
         ...(can("business_goals") ? [{ label: "Lista de metas", to: PATHS.businessGoalsList, icon: FiFileText }] : []),
+        ...(can("business_goals") ? [{ label: "Metas pasadas", to: PATHS.businessGoalsPast, icon: FiArchive }] : []),
         ...(can("business_goals") ? [{ label: "Crear meta", to: PATHS.businessGoalCreate, icon: FiPlusCircle }] : []),
         ...(can("business_goals") ? [{ label: "Gastos fijos", to: PATHS.businessGoalExpenses, icon: FiDollarSign }] : []),
         ...(can("business_goals") ? [{ label: "Asignacion de variables", to: PATHS.businessGoalVariables, icon: FiGitBranch }] : []),

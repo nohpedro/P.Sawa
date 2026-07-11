@@ -16,6 +16,7 @@ export const PATHS = {
   inventoryPromotions: "/admin/inventario/promociones",
   businessGoalsDashboard: "/admin/metas-empresariales",
   businessGoalsList: "/admin/metas-empresariales/listado",
+  businessGoalsPast: "/admin/metas-empresariales/pasadas",
   businessGoalCreate: "/admin/metas-empresariales/nueva",
   businessGoalVariables: "/admin/metas-empresariales/variables",
   businessGoalDetail: "/admin/metas-empresariales/:id",

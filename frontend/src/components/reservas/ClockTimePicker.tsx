@@ -93,6 +93,7 @@ export default function ClockTimePicker({
   onChange,
   minuteStep = 5,
   disabled = false,
+  minValue,
 }: {
   label: string;
   value: HHMM;
@@ -100,12 +101,30 @@ export default function ClockTimePicker({
   minuteStep?: number;
   size?: number;
   disabled?: boolean;
+  minValue?: HHMM;
 }) {
   const { h, m } = parseHHMM(value);
+  const minMinutes = minValue ? minutesFromHHMM(minValue) : null;
+  const isBelowMin = minMinutes !== null && minutesFromHHMM(value) < minMinutes;
+  const fieldStyle: React.CSSProperties = {
+    ...FIELD_STYLE,
+    border: isBelowMin ? "1px solid #ffd24a" : FIELD_STYLE.border,
+    background: isBelowMin ? "rgba(255,210,74,0.08)" : FIELD_STYLE.background,
+  };
 
   const setByMinutes = (delta: number) => {
     if (disabled) return;
-    onChange(fromMinutes(minutesFromHHMM(value) + delta));
+    const next = minutesFromHHMM(value) + delta;
+    onChange(minMinutes !== null && next < minMinutes ? minValue! : fromMinutes(next));
+  };
+
+  const applyInputValue = (rawValue: string) => {
+    const rounded = roundToStep(rawValue, minuteStep);
+    if (minMinutes !== null && minutesFromHHMM(rounded) < minMinutes) {
+      onChange(minValue!);
+      return;
+    }
+    onChange(rounded);
   };
 
   return (
@@ -129,9 +148,10 @@ export default function ClockTimePicker({
         type="time"
         value={value}
         step={minuteStep * 60}
+        min={minValue}
         disabled={disabled}
-        onChange={(evt) => onChange(roundToStep(evt.target.value, minuteStep))}
-        style={FIELD_STYLE}
+        onChange={(evt) => applyInputValue(evt.target.value)}
+        style={fieldStyle}
       />
 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: 6 }}>

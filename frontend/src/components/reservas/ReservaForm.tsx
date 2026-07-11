@@ -14,7 +14,7 @@ import type { Reserva, ReservaPromotionCredit, ReservaWriteDTO } from "../../mod
 import type { Espacio } from "../../models/espacio";
 import type { InventoryPromotion, InventoryPromotionPriority } from "../../models/inventory";
 import { espacioTieneActividad, calcularCostoPorHora, calcularCostoPorBloques } from "../../utils/reservas";
-import { combineDateAndTimeToISO } from "../../utils/date";
+import { combineDateAndTimeToISO, toYYYYMMDD } from "../../utils/date";
 import inventoryService from "../../services/inventory.service";
 import reservasService from "../../services/reservas.service";
 
@@ -28,6 +28,7 @@ import TimeRangePicker from "./TimeRangePicker";
 import type { HHMM } from "./ClockTimePicker";
 import {
   addMinutes,
+  dateToHHMM,
   hhmmToMinutes,
   minutesToHHMM,
   rangesOverlap,
@@ -148,6 +149,7 @@ export default function ReservaForm({
   const [uiError, setUiError] = useState<string | null>(null);
   const [createClienteOpen, setCreateClienteOpen] = useState(false);
   const [recommendedOpen, setRecommendedOpen] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
 
   useEffect(() => {
     espacios.list({ page: "1" }).catch(() => {});
@@ -155,6 +157,11 @@ export default function ReservaForm({
     clientes.list({ page: "1" }).catch(() => {});
     inventoryService.listPromotions({ page: "1", page_size: "100", activo: "true" }).then((res) => setPromotions(res.results ?? [])).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowTick(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -216,6 +223,11 @@ export default function ReservaForm({
 
   const inicioISO = useMemo(() => combineDateAndTimeToISO(day, inicioHHMM), [day, inicioHHMM]);
   const finISO = useMemo(() => combineDateAndTimeToISO(day, finHHMM), [day, finHHMM]);
+  const startsInPast = useMemo(() => new Date(inicioISO).getTime() < nowTick, [inicioISO, nowTick]);
+  const minStartHHMM = useMemo(() => {
+    const now = new Date(nowTick);
+    return day === toYYYYMMDD(now) ? dateToHHMM(now) : undefined;
+  }, [day, nowTick]);
   const selectedRangeMinutes = useMemo(() => {
     return {
       start: hhmmToMinutes(inicioHHMM),
@@ -226,6 +238,14 @@ export default function ReservaForm({
     const selectedDuration = selectedRangeMinutes.end - selectedRangeMinutes.start;
     return Math.max(15, selectedDuration > 0 ? selectedDuration : relEA?.duracion_minutos || 60);
   }, [relEA?.duracion_minutos, selectedRangeMinutes.end, selectedRangeMinutes.start]);
+
+  useEffect(() => {
+    if (!minStartHHMM || hhmmToMinutes(inicioHHMM) >= hhmmToMinutes(minStartHHMM)) return;
+    setInicioHHMM(minStartHHMM);
+    if (hhmmToMinutes(finHHMM) <= hhmmToMinutes(minStartHHMM)) {
+      setFinHHMM(addMinutes(minStartHHMM, relEA?.duracion_minutos ?? 60));
+    }
+  }, [finHHMM, inicioHHMM, minStartHHMM, relEA?.duracion_minutos]);
 
   const activeReservationsForSpace = useMemo(() => {
     if (!espacioId) return [];
@@ -334,14 +354,25 @@ export default function ReservaForm({
     }
   }, [discountPromotions, selectedDiscountId]);
 
+  const missingRequiredFields = useMemo(() => {
+    const missing: string[] = [];
+    if (!day) missing.push("Fecha");
+    if (!clienteId) missing.push("Cliente");
+    if (!espacioId) missing.push("Espacio");
+    if (!actividadId) missing.push("Actividad");
+    if (!inicioHHMM) missing.push("Hora de inicio");
+    if (!finHHMM) missing.push("Hora de finalizacion");
+    if (inicioHHMM && finHHMM && new Date(finISO).getTime() <= new Date(inicioISO).getTime()) missing.push("Hora de finalizacion posterior a la hora de inicio");
+    if (!hasValidReceivedAmount) missing.push("Monto recibido");
+    return missing;
+  }, [actividadId, clienteId, day, finHHMM, finISO, hasValidReceivedAmount, inicioHHMM, inicioISO, espacioId]);
+
   const canSubmit =
-    !!clienteId &&
-    !!espacioId &&
+    missingRequiredFields.length === 0 &&
     espacioEstadoReserva.disponible &&
-    !!actividadId &&
     actividadValida &&
     !overlappingReservation &&
-    hasValidReceivedAmount &&
+    !startsInPast &&
     new Date(finISO).getTime() > new Date(inicioISO).getTime();
 
   const submit = async () => {
@@ -374,6 +405,11 @@ export default function ReservaForm({
 
     if (new Date(finISO).getTime() <= new Date(inicioISO).getTime()) {
       setUiError("La hora fin debe ser mayor a la hora inicio.");
+      return;
+    }
+
+    if (startsInPast) {
+      setUiError("La reserva no puede iniciar en una fecha u hora anterior a la actual.");
       return;
     }
 
@@ -536,6 +572,7 @@ export default function ReservaForm({
               Ese espacio no tiene asignada la actividad seleccionada.
             </div>
           )}
+
         </div>
 
         <div
@@ -558,6 +595,7 @@ export default function ReservaForm({
               onFinChange={setFinHHMM}
               minuteStep={5}
               disabled={!espacioId || !actividadId || !espacioEstadoReserva.disponible}
+              minInicioHHMM={minStartHHMM}
             />
 
             <div
@@ -724,6 +762,15 @@ export default function ReservaForm({
       {uiError && (
         <div style={{ color: "#fecaca", background: "#3f1111", border: "1px solid #ff5252", borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 800, whiteSpace: "pre-line" }}>
           {uiError}
+        </div>
+      )}
+
+      {missingRequiredFields.length > 0 && (
+        <div style={{ color: "#fde68a", background: "#3a2f0a", border: "1px solid #ffd24a", borderRadius: 8, padding: 10, fontSize: 13, lineHeight: 1.45 }}>
+          <strong>Datos obligatorios pendientes:</strong>
+          <ul style={{ margin: "6px 0 0 18px", padding: 0 }}>
+            {missingRequiredFields.map((field) => <li key={field}>{field}</li>)}
+          </ul>
         </div>
       )}
 

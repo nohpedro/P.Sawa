@@ -3,11 +3,13 @@ import { firstWeekdayOfMonth, daysInMonth, toYYYYMMDD } from "../../utils/date.t
 export default function MonthCalendar({
   month,
   selectedDay,
+  disablePastDays = false,
   onSelectDay,
   onDoubleClickDay,
 }: {
   month: Date;
   selectedDay: string; // YYYY-MM-DD
+  disablePastDays?: boolean;
   onSelectDay: (day: string) => void;
   onDoubleClickDay: (day: string) => void;
 }) {
@@ -16,6 +18,7 @@ export default function MonthCalendar({
 
   const year = month.getFullYear();
   const m = month.getMonth(); // 0-based
+  const today = toYYYYMMDD(new Date());
 
   const cells: Array<{ day: number | null; key: string; date?: string }> = [];
 
@@ -47,23 +50,30 @@ export default function MonthCalendar({
           }
 
           const active = c.date === selectedDay;
+          const disabled = disablePastDays && c.date < today;
 
           return (
             <button
               key={c.key}
               type="button"
-              onClick={() => onSelectDay(c.date!)}
-              onDoubleClick={() => onDoubleClickDay(c.date!)}
+              disabled={disabled}
+              onClick={() => {
+                if (!disabled) onSelectDay(c.date!);
+              }}
+              onDoubleClick={() => {
+                if (!disabled) onDoubleClickDay(c.date!);
+              }}
               style={{
                 height: 54,
                 borderRadius: 12,
-                border: `1px solid ${active ? "var(--color-accent)" : "var(--color-border)"}`,
-                background: active ? "rgba(255,210,74,0.10)" : "rgba(255,255,255,0.02)",
-                color: "var(--color-text)",
-                cursor: "pointer",
+                border: `1px solid ${disabled ? "#1f2937" : active ? "var(--color-accent)" : "var(--color-border)"}`,
+                background: disabled ? "#0b1020" : active ? "rgba(255,210,74,0.10)" : "rgba(255,255,255,0.02)",
+                color: disabled ? "#64748b" : "var(--color-text)",
+                cursor: disabled ? "not-allowed" : "pointer",
                 fontWeight: 900,
+                opacity: disabled ? 0.55 : 1,
               }}
-              title="Doble click para crear reserva"
+              title={disabled ? "Fecha no disponible para reserva" : "Doble click para crear reserva"}
             >
               {c.day}
             </button>

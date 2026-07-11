@@ -4,6 +4,7 @@ import { PATHS } from "../../../router/paths";
 const links = [
   { to: PATHS.businessGoalsDashboard, label: "Panel" },
   { to: PATHS.businessGoalsList, label: "Metas" },
+  { to: PATHS.businessGoalsPast, label: "Pasadas" },
   { to: PATHS.businessGoalCreate, label: "Nueva" },
   { to: PATHS.businessGoalExpenses, label: "Gastos fijos" },
   { to: PATHS.businessGoalVariables, label: "Variables" },

@@ -8,6 +8,7 @@ export default function TimeRangePicker({
   onFinChange,
   minuteStep = 5,
   disabled = false,
+  minInicioHHMM,
 }: {
   inicioHHMM: HHMM;
   onInicioChange: (v: HHMM) => void;
@@ -17,6 +18,7 @@ export default function TimeRangePicker({
 
   minuteStep?: number;
   disabled?: boolean;
+  minInicioHHMM?: HHMM;
 }) {
   const minutes = Math.max(0, hhmmToMinutes(finHHMM) - hhmmToMinutes(inicioHHMM));
   const durationLabel = minutes > 0 ? `${minutes} min` : "Revisar hora fin";
@@ -73,6 +75,7 @@ export default function TimeRangePicker({
           onChange={onInicioChange}
           minuteStep={minuteStep}
           disabled={disabled}
+          minValue={minInicioHHMM}
         />
 
         <ClockTimePicker

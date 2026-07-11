@@ -13,6 +13,7 @@ import type { Cliente } from "../../models/cliente";
 import type { InventoryItem } from "../../models/inventory";
 import { PATHS } from "../../router/paths";
 import inventoryService from "../../services/inventory.service";
+import { cashRound, isWholeQuantity } from "../../utils/currency";
 import { getErrorMessage } from "../../utils/error";
 
 type ToastState = { open: boolean; message: string; type: "info" | "success" | "error" };
@@ -109,7 +110,7 @@ export default function ProductSalesPage() {
     .filter((line) => line.item.id === selectedItem?.id)
     .reduce((sum, line) => sum + Number(line.quantity || 0), 0);
   const selectedLineTotal = selectedItem ? Number(quantity || 0) * Number(unitPrice || 0) : 0;
-  const canAddSelected = !!selectedItem && Number(quantity) > 0 && Number(quantity) + selectedExistingQuantity <= stock && Number(unitPrice) > 0;
+  const canAddSelected = !!selectedItem && isWholeQuantity(quantity) && Number(quantity) > 0 && Number(quantity) + selectedExistingQuantity <= stock && Number(unitPrice) > 0;
   const canSubmit = cartLines.length > 0 && hasSelectedClient && !cartStockIssue && paymentCoversTotal;
 
   const load = async () => {
@@ -140,7 +141,7 @@ export default function ProductSalesPage() {
 
   useEffect(() => {
     if (!selectedItem) return;
-    setUnitPrice(selectedItem.precio_venta_sugerido || "0");
+    setUnitPrice(String(cashRound(selectedItem.precio_venta_sugerido || "0")));
     setProductQuery(selectedItem.nombre);
   }, [selectedItem]);
 
@@ -165,7 +166,7 @@ export default function ProductSalesPage() {
             : line
         );
       }
-      return [...current, { item: selectedItem, quantity, unitPrice: selectedItem.precio_venta_sugerido || unitPrice || "0" }];
+      return [...current, { item: selectedItem, quantity, unitPrice: String(cashRound(selectedItem.precio_venta_sugerido || unitPrice || "0")) }];
     });
     setSelectedItemId("");
     setProductQuery("");
@@ -298,7 +299,7 @@ export default function ProductSalesPage() {
                   >
                     <strong>{item.nombre}</strong>
                     <div style={{ color: "var(--color-text-muted)", fontSize: 12, marginTop: 3 }}>
-                      {money(item.precio_venta_sugerido)} / stock {Number(item.stock_actual).toFixed(2)}
+                       {money(cashRound(item.precio_venta_sugerido))} / stock {Number(item.stock_actual).toFixed(0)}
                     </div>
                   </button>
                 ))}
@@ -317,7 +318,7 @@ export default function ProductSalesPage() {
                 </div>
                 <div>
                   <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Stock</div>
-                  <strong>{stock.toFixed(2)}</strong>
+                   <strong>{stock.toFixed(0)}</strong>
                 </div>
                 <Button variant="outline" size="sm" onClick={() => { setSelectedItemId(""); setProductQuery(""); }}>
                   Cambiar
@@ -391,9 +392,10 @@ export default function ProductSalesPage() {
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                <Input label="Cantidad" type="number" min="0.01" step="0.01" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
+                <Input label="Cantidad" type="number" min="1" step="1" value={quantity} onChange={(event) => setQuantity(event.target.value)} />
                 <Input label="Precio unitario" type="number" min="0.01" step="0.01" value={unitPrice} readOnly disabled />
               </div>
+              {!isWholeQuantity(quantity) && <div style={{ color: "#ffb4b4", fontSize: 12 }}>La cantidad vendida debe ser un numero entero de unidades.</div>}
 
               <Button
                 onClick={addSelectedToCart}
@@ -425,7 +427,7 @@ export default function ProductSalesPage() {
 
             {selectedItem && Number(quantity) + selectedExistingQuantity > stock && (
               <div style={{ color: "#fecaca", background: "#3f1111", border: "1px solid #ff5252", borderRadius: 8, padding: 10, fontSize: 13, fontWeight: 800 }}>
-                Stock insuficiente. Disponible: {stock.toFixed(2)} unidades{selectedExistingQuantity ? `, ya agregadas: ${selectedExistingQuantity.toFixed(2)}.` : "."}
+                Stock insuficiente. Disponible: {stock.toFixed(0)} unidades{selectedExistingQuantity ? `, ya agregadas: ${selectedExistingQuantity.toFixed(0)}.` : "."}
               </div>
             )}
 
@@ -463,7 +465,7 @@ export default function ProductSalesPage() {
                     </div>
                     <div>
                       <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Cant.</div>
-                      <strong>{Number(line.quantity).toFixed(2)}</strong>
+                      <strong>{Number(line.quantity).toFixed(0)}</strong>
                     </div>
                     <div>
                       <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Total</div>
@@ -593,7 +595,7 @@ export default function ProductSalesPage() {
                         <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Stock</div>
                       </div>
                       <div>
-                        <div style={{ fontWeight: 950, color: "#ffd24a" }}>{money(item.precio_venta_sugerido)}</div>
+                         <div style={{ fontWeight: 950, color: "#ffd24a" }}>{money(cashRound(item.precio_venta_sugerido))}</div>
                         <div style={{ color: "var(--color-text-muted)", fontSize: 12 }}>Precio</div>
                       </div>
                       <span

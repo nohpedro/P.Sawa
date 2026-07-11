@@ -22,7 +22,7 @@ export default function BusinessGoalsListPage() {
   const [deleteGoal, setDeleteGoal] = useState<BusinessGoal | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [toast, setToast] = useState({ open: false, message: "", type: "info" as "info" | "success" | "error" });
-  const { goals, loading, error, reload } = useBusinessGoals(status === "all" ? undefined : { estado: status });
+  const { goals, loading, error, reload } = useBusinessGoals(status === "all" ? { periodo: "vigentes" } : { periodo: "vigentes", estado: status });
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return q ? goals.filter((goal) => `${goal.nombre} ${goal.descripcion}`.toLowerCase().includes(q)) : goals;

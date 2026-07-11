@@ -2,6 +2,7 @@
 from datetime import datetime, time as dtime
 from decimal import Decimal, ROUND_HALF_UP
 
+from django.db import transaction
 from django.utils.dateparse import parse_date
 from django.utils import timezone
 from rest_framework import viewsets, filters
@@ -11,8 +12,11 @@ from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes
 
 from auth_vap.authentication import AccessTokenAuthentication
+from audit.models import AuditLog
 from audit.utils import AuditLogMixin
+from common_vap.enums import ReservaEstado
 from common_vap.permissions import HasModuleAccess, IsAdminOrReadOnly
+from inventario.models import InventoryItemType, InventoryPromotion
 from .models import (
     TipoActividad,
     Espacio,
@@ -129,6 +133,35 @@ class EspacioActividadViewSet(AuditLogMixin, viewsets.ModelViewSet):
     search_fields = ("espacio__nombre", "tipo__nombre")
     ordering_fields = ("duracion_minutos", "precio_base", "created_at")
     filterset_fields = ("activo", "espacio", "tipo")
+
+    def perform_destroy(self, instance):
+        affected = list(
+            Reserva.objects
+            .filter(
+                espacio=instance.espacio,
+                actividad=instance.tipo,
+                estado_reserva__in=(ReservaEstado.PENDIENTE, ReservaEstado.CONFIRMADA, ReservaEstado.ACTIVA),
+                inicio__gte=timezone.now(),
+            )
+            .select_related("cliente", "usuario", "espacio", "actividad")
+        )
+
+        cancelled_at = timezone.now()
+        cancel_note = (
+            "Cancelada automaticamente porque se elimino la relacion "
+            f"entre {instance.espacio} y {instance.tipo}. La nota de venta asociada queda invalidada."
+        )
+        for reservation in affected:
+            current_notes = (reservation.notas or "").strip()
+            reservation.estado_reserva = ReservaEstado.CANCELADA
+            reservation.notas = f"{current_notes}\n{cancel_note}" if current_notes else cancel_note
+            reservation.updated_at = cancelled_at
+
+        with transaction.atomic():
+            if affected:
+                Reserva.objects.bulk_update(affected, ["estado_reserva", "notas", "updated_at"])
+
+            super().perform_destroy(instance)
 
     def get_audit_summary(self, instance):
         return (
@@ -288,7 +321,7 @@ class PromocionViewSet(viewsets.ModelViewSet):
 class ReservaViewSet(AuditLogMixin, viewsets.ModelViewSet):
     audit_module = "reservations"
     required_module = "reservations"
-    read_modules = ("reservations", "history")
+    read_modules = ("reservations", "history", "space_activities")
     queryset = Reserva.objects.select_related(
         "espacio",
         "usuario",
@@ -344,6 +377,31 @@ class ReservaViewSet(AuditLogMixin, viewsets.ModelViewSet):
             "estado_reserva": "Estado de reserva",
             "notas": "Notas",
         }
+
+    @action(detail=True, methods=["post"], url_path="entregar-promocion")
+    def entregar_promocion(self, request, pk=None):
+        reserva = self.get_object()
+        promocion_id = str(request.data.get("promocion_id") or "")
+        applied = list(reserva.promociones_aplicadas or [])
+        target = next((entry for entry in applied if str(entry.get("promocion_id") or "") == promocion_id), None)
+
+        if not target or target.get("tipo") != "item_regalo":
+            return Response({"detail": "La reserva no tiene ese item consumible pendiente de entrega."}, status=400)
+        if target.get("entregada"):
+            return Response(ReservaSerializer(reserva).data)
+
+        item_id = target.get("item_regalo")
+        promotion = InventoryPromotion.objects.select_related("item_regalo").filter(pk=target.get("promocion_id")).first()
+        if not promotion or not promotion.item_regalo_id or promotion.item_regalo.tipo != InventoryItemType.CONSUMIBLE or str(promotion.item_regalo_id) != str(item_id):
+            return Response({"detail": "La promocion no contiene un item consumible entregable."}, status=400)
+
+        target["entregada"] = True
+        target["entregada_en"] = timezone.now().isoformat()
+        target["entregada_por"] = request.user.get_username()
+        reserva.promociones_aplicadas = applied
+        reserva.save(update_fields=["promociones_aplicadas", "updated_at"])
+        self._write_audit(AuditLog.Action.UPDATE, reserva)
+        return Response(ReservaSerializer(reserva).data)
 
     def get_queryset(self):
         qs = super().get_queryset()

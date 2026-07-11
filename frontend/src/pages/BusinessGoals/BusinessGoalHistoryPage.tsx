@@ -29,10 +29,10 @@ export default function BusinessGoalHistoryPage() {
   return (
     <div style={{ display: "grid", gap: 18 }}>
       <GoalNav />
-      <Card title="Historial de ciclos" subtitle="Cada ciclo conserva su propio periodo sin sobrescribir anteriores.">
+      <Card title="Historial de ciclos" subtitle="Cada ciclo conserva su propia ganancia acumulada sin sobrescribir anteriores.">
         {loading && <Loader label="Cargando historial..." />}
         <div style={{ display: "grid", gap: 10 }}>
-          {cycles.map((cycle) => <div key={cycle.id} style={panelStyle}>Ciclo {cycle.numero}: {cycle.fecha_inicio} a {cycle.fecha_fin} - <strong>{money(cycle.monto_acumulado)}</strong> / {money(cycle.monto_objetivo)}</div>)}
+          {cycles.map((cycle) => <div key={cycle.id} style={panelStyle}>Ciclo {cycle.numero}: {cycle.fecha_inicio} a {cycle.fecha_fin} - Ganancia: <strong>{money(cycle.monto_acumulado)}</strong> / {money(cycle.monto_objetivo)}</div>)}
         </div>
       </Card>
       <Card title="Movimientos" subtitle="Ingresos, gastos, reservas y ajustes asociados a metas.">

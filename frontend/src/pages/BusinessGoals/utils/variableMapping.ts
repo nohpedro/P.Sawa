@@ -1,3 +1,4 @@
+import type { InventoryPurchaseBatch } from "../../../models/inventory";
 import type { BusinessFixedExpense, BusinessGoalNodeWriteDTO, GoalNodeType } from "../../../models/businessGoals";
 
 export function nodeTypeForFixedExpense(expense: BusinessFixedExpense): GoalNodeType {
@@ -38,6 +39,41 @@ export function nodeDraftFromFixedExpense({
       estado: expense.estado,
       categoria: expense.categoria,
       prioridad: expense.prioridad,
+    },
+  };
+}
+
+export function nodeDraftFromPurchaseBatch({
+  goalId,
+  cycleId,
+  batch,
+  index,
+}: {
+  goalId: string;
+  cycleId?: string | null;
+  batch: InventoryPurchaseBatch;
+  index: number;
+}): BusinessGoalNodeWriteDTO {
+  return {
+    goal: goalId,
+    cycle: cycleId ?? null,
+    tipo: "gastos_variables",
+    etiqueta: `Lote de ${batch.item_nombre ?? "inventario"}`,
+    valor: batch.costo_total,
+    porcentaje: "100",
+    periodo_inicio: batch.fecha_compra,
+    periodo_fin: batch.fecha_compra,
+    posicion_x: 520,
+    posicion_y: 70 + index * 172,
+    config: {
+      batch_id: batch.id,
+      item_id: batch.item,
+      item_nombre: batch.item_nombre,
+      fecha_compra: batch.fecha_compra,
+      cantidad: batch.cantidad,
+      proveedor: batch.proveedor,
+      costo_total: batch.costo_total,
+      categoria: "Gasto variable",
     },
   };
 }

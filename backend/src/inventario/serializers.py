@@ -12,6 +12,12 @@ from .models import (
 from .permissions import default_sale_margin_if_unauthorized
 
 
+def validate_whole_quantity(value, label: str):
+    if value is not None and value != value.to_integral_value():
+        raise serializers.ValidationError(f"{label} debe ser un numero entero de unidades.")
+    return value
+
+
 class InventoryPurchaseBatchSerializer(serializers.ModelSerializer):
     item_nombre = serializers.ReadOnlyField(source="item.nombre")
     creado_por_username = serializers.ReadOnlyField(source="creado_por.username")
@@ -37,8 +43,12 @@ class InventoryPurchaseBatchSerializer(serializers.ModelSerializer):
         )
         read_only_fields = ("creado_por", "costo_unitario", "precio_venta_unitario")
 
+    def validate_cantidad(self, value):
+        return validate_whole_quantity(value, "La cantidad del lote")
+
 
 class InventoryItemSerializer(serializers.ModelSerializer):
+    sku = serializers.CharField(required=False, allow_blank=True, allow_null=True, validators=[])
     tipo_label = serializers.CharField(source="get_tipo_display", read_only=True)
     unidad_label = serializers.CharField(source="get_unidad_display", read_only=True)
     margen_sugerido = serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
@@ -100,6 +110,22 @@ class InventoryItemSerializer(serializers.ModelSerializer):
             self._request_user(),
         )
         return attrs
+
+    def validate_sku(self, value):
+        normalized = (value or "").strip() or None
+        if normalized:
+            queryset = InventoryItem.objects.filter(sku__iexact=normalized)
+            if self.instance:
+                queryset = queryset.exclude(pk=self.instance.pk)
+            if queryset.exists():
+                raise serializers.ValidationError("Ya existe un item con ese codigo.")
+        return normalized
+
+    def validate_stock_actual(self, value):
+        return validate_whole_quantity(value, "El stock actual")
+
+    def validate_stock_minimo(self, value):
+        return validate_whole_quantity(value, "El stock minimo")
 
     def _request_user(self):
         request = self.context.get("request")
@@ -167,6 +193,9 @@ class InventoryPromotionSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"prioridad": "Selecciona prioridad baja, media o alta."})
         return attrs
 
+    def validate_cantidad_item_regalo(self, value):
+        return validate_whole_quantity(value, "La cantidad del item")
+
 
 class InventoryProductSaleSerializer(serializers.ModelSerializer):
     item_nombre = serializers.ReadOnlyField(source="item.nombre")
@@ -215,3 +244,6 @@ class InventoryProductSaleSerializer(serializers.ModelSerializer):
         if not item.activo:
             raise serializers.ValidationError("El item no esta activo.")
         return item
+
+    def validate_cantidad(self, value):
+        return validate_whole_quantity(value, "La cantidad vendida")
